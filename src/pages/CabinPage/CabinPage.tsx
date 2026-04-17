@@ -4,10 +4,12 @@
 // 依赖数据：store.shells / store.paintings（AI挂画列表）
 // ========================================
 
+import { useNavigate } from 'react-router-dom'
 import { useAppStore } from '../../store/appStore'
 
 export default function CabinPage() {
   const shells = useAppStore(s => s.shells)
+  const navigate = useNavigate()
 
   return (
     <div style={{
@@ -59,19 +61,33 @@ export default function CabinPage() {
         </p>
       </div>
 
-      {/* 小屋场景占位 */}
-      <div style={{
-        margin: '8px 16px',
-        background: 'var(--color-card)',
-        borderRadius: 'var(--radius-lg)',
-        padding: '32px 16px',
-        boxShadow: 'var(--shadow-card)',
-        textAlign: 'center',
-      }}>
-        <div style={{ fontSize: '48px', marginBottom: '8px' }}>🪴 🛋️ 💡</div>
-        <p style={{ fontSize: '13px', color: 'var(--color-text-sub)' }}>
-          小屋里的每一件物品，都是你与自己的约定。
+      {/* 小屋 3D 场景入口 */}
+      <div
+        onClick={() => navigate('/cabin/stage')}
+        style={{
+          margin: '8px 16px',
+          background: 'linear-gradient(135deg, #0d2b0d 0%, #1a3d1a 100%)',
+          borderRadius: 'var(--radius-lg)',
+          padding: '24px 16px',
+          boxShadow: 'var(--shadow-card)',
+          textAlign: 'center',
+          cursor: 'pointer',
+          position: 'relative',
+          overflow: 'hidden',
+        }}
+      >
+        <div style={{ fontSize: '36px', marginBottom: '8px' }}>🌸</div>
+        <p style={{ fontSize: '15px', color: 'rgba(200,240,200,0.9)', fontWeight: 500 }}>
+          进入我的小屋
         </p>
+        <p style={{ fontSize: '12px', color: 'rgba(200,240,200,0.5)', marginTop: '4px' }}>
+          花海 · 春风 · 静谧空间
+        </p>
+        <div style={{
+          position: 'absolute', right: '16px', top: '50%',
+          transform: 'translateY(-50%)',
+          fontSize: '18px', color: 'rgba(200,240,200,0.4)',
+        }}>→</div>
       </div>
 
       {/* 即将推出 */}

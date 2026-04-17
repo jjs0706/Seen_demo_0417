@@ -6,6 +6,7 @@ import StoriesPage from './pages/StoriesPage/StoriesPage'
 import CabinPage from './pages/CabinPage/CabinPage'
 import MePage from './pages/MePage/MePage'
 import SandboxPage from './pages/SandboxPage/SandboxPage'
+import CottageStage from './pages/CabinPage/CottageStage'
 
 // 🔌 疗愈中心子页面（目前为占位，后续替换为真实实现）
 const ComingSoon = ({ title }: { title: string }) => (
@@ -44,6 +45,9 @@ export default function App() {
 
           {/* 🔌 沙盘创作（Three.js 3D场景）*/}
           <Route path="sandbox" element={<SandboxPage />} />
+
+          {/* 小屋花海场景（R3F）*/}
+          <Route path="cabin/stage" element={<CottageStage />} />
         </Route>
       </Routes>
     </BrowserRouter>
