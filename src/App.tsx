@@ -5,6 +5,7 @@ import RecordPage from './pages/RecordPage/RecordPage'
 import StoriesPage from './pages/StoriesPage/StoriesPage'
 import CabinPage from './pages/CabinPage/CabinPage'
 import MePage from './pages/MePage/MePage'
+import SandboxPage from './pages/SandboxPage/SandboxPage'
 
 // 🔌 疗愈中心子页面（目前为占位，后续替换为真实实现）
 const ComingSoon = ({ title }: { title: string }) => (
@@ -40,6 +41,9 @@ export default function App() {
           <Route path="healing/drift-bottle" element={<ComingSoon title="漂流瓶" />} />
           <Route path="healing/breathe"      element={<ComingSoon title="呼吸练习" />} />
           <Route path="healing/lighthouse"   element={<ComingSoon title="灯塔守护者" />} />
+
+          {/* 🔌 沙盘创作（Three.js 3D场景）*/}
+          <Route path="sandbox" element={<SandboxPage />} />
         </Route>
       </Routes>
     </BrowserRouter>

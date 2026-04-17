@@ -14,7 +14,7 @@ const MODULES = [
 ]
 
 const DEEP_MODULES = [
-  { icon: '⛰️', title: '沙盘创作', subtitle: '心理投射', locked: true, unlockDay: 7 },
+  { icon: '⛰️', title: '沙盘创作', subtitle: '心理投射', to: '/sandbox', locked: false },
   { icon: '🌙', title: '梦境分析', subtitle: '潜意识探索', locked: true, unlockDay: 7 },
 ]
 
@@ -86,13 +86,15 @@ export default function StoriesPage() {
           {DEEP_MODULES.map((m, i) => (
             <div
               key={m.title}
+              onClick={() => !m.locked && 'to' in m && navigate((m as {to:string}).to)}
               style={{
                 display: 'flex',
                 alignItems: 'center',
                 padding: '14px 16px',
                 gap: '12px',
                 borderTop: i > 0 ? '1px solid rgba(0,0,0,0.05)' : 'none',
-                opacity: 0.5,
+                opacity: m.locked ? 0.5 : 1,
+                cursor: m.locked ? 'default' : 'pointer',
               }}
             >
               <span style={{ fontSize: '20px' }}>{m.icon}</span>
@@ -100,9 +102,10 @@ export default function StoriesPage() {
                 <div style={{ fontSize: '14px', color: 'var(--color-text)' }}>{m.title}</div>
                 <div style={{ fontSize: '11px', color: 'var(--color-text-sub)' }}>{m.subtitle}</div>
               </div>
-              <span style={{ fontSize: '10px', color: 'var(--color-text-sub)' }}>
-                🔒 {m.unlockDay}天解锁
-              </span>
+              {m.locked
+                ? <span style={{ fontSize: '10px', color: 'var(--color-text-sub)' }}>🔒 {(m as {unlockDay:number}).unlockDay}天解锁</span>
+                : <span style={{ fontSize: '12px', color: 'var(--color-text-sub)' }}>→</span>
+              }
             </div>
           ))}
         </div>
