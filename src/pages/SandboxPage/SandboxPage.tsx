@@ -172,7 +172,7 @@ export default function SandboxPage() {
       roofShape.moveTo(-0.55,0); roofShape.lineTo(0,0.4); roofShape.lineTo(0.55,0); roofShape.closePath()
       const roof = new THREE.Mesh(new THREE.ExtrudeGeometry(roofShape,{depth:0.8,bevelEnabled:false}), roofMat)
       roof.rotation.y=Math.PI/2; roof.position.set(0.4,0.7,-0.275); roof.castShadow=true; house.add(roof)
-      house.add(Object.assign(new THREE.Mesh(new THREE.BoxGeometry(0.18,0.35,0.02),doorMat),{position:new THREE.Vector3(0,0.2,0.36)}))
+      const door = new THREE.Mesh(new THREE.BoxGeometry(0.18,0.35,0.02),doorMat); door.position.set(0,0.2,0.36); house.add(door)
       const winMat = new THREE.MeshStandardMaterial({color:0xcce5ff,roughness:0.2,metalness:0.1})
       for (const wx of [-0.22,0.22]) {
         const win = new THREE.Mesh(new THREE.BoxGeometry(0.12,0.12,0.02),winMat); win.position.set(wx,0.45,0.36); house.add(win)
@@ -298,7 +298,7 @@ export default function SandboxPage() {
     // ── Flowers ──
     function createFlower(x:number,z:number,color=0xff6699){
       const flower = new THREE.Group()
-      flower.add(Object.assign(new THREE.Mesh(new THREE.CylinderGeometry(0.008,0.008,0.15,4),leafMat),{position:new THREE.Vector3(0,0.075,0)}))
+      const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.008,0.008,0.15,4),leafMat); stem.position.set(0,0.075,0); flower.add(stem)
       const pMat = new THREE.MeshStandardMaterial({color,roughness:0.6})
       for(let i=0;i<5;i++){
         const a=(i/5)*Math.PI*2
