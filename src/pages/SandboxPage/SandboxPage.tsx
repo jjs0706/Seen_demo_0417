@@ -13,21 +13,14 @@ export default function SandboxPage() {
     const container = containerRef.current
     if (!container) return
 
-    // 等浏览器完成布局再初始化，避免 clientWidth/clientHeight 为 0
-    let rafId: number
-    rafId = requestAnimationFrame(() => init(container))
-    return () => cancelAnimationFrame(rafId)
-  }, [])
-
-  // 把 Three.js 初始化抽到独立函数，方便 cleanup 返回
-  function init(container: HTMLDivElement) {
     // ── Scene ──
     const scene = new THREE.Scene()
     scene.background = new THREE.Color(0xf5f0eb)
     scene.fog = new THREE.FogExp2(0xf5f0eb, 0.008)
 
-    const w = container.clientWidth
-    const h = container.clientHeight
+    // 直接用 window 尺寸，避免容器未渲染时 clientWidth/Height 为 0
+    const w = window.innerWidth
+    const h = window.innerHeight
     const camera = new THREE.PerspectiveCamera(35, w / h, 0.1, 1000)
     const camDist = 18
     const camAngle = Math.PI / 6
@@ -410,7 +403,8 @@ export default function SandboxPage() {
       renderer.dispose()
       if (container.contains(renderer.domElement)) container.removeChild(renderer.domElement)
     }
-  }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   return (
     <div style={{ position: 'fixed', inset: 0, display: 'flex', flexDirection: 'column' }}>
