@@ -13,6 +13,14 @@ export default function SandboxPage() {
     const container = containerRef.current
     if (!container) return
 
+    // 等浏览器完成布局再初始化，避免 clientWidth/clientHeight 为 0
+    let rafId: number
+    rafId = requestAnimationFrame(() => init(container))
+    return () => cancelAnimationFrame(rafId)
+  }, [])
+
+  // 把 Three.js 初始化抽到独立函数，方便 cleanup 返回
+  function init(container: HTMLDivElement) {
     // ── Scene ──
     const scene = new THREE.Scene()
     scene.background = new THREE.Color(0xf5f0eb)
@@ -359,9 +367,9 @@ export default function SandboxPage() {
 
     // ── Animation loop ──
     const clock = new THREE.Clock()
-    let rafId: number
+    let animRafId: number
     function animate() {
-      rafId = requestAnimationFrame(animate)
+      animRafId = requestAnimationFrame(animate)
       const dt=clock.getDelta(); const time=clock.getElapsedTime()
       if(!isDragging) targetRotY+=dt*0.05
       currentRotY+=(targetRotY-currentRotY)*0.05
@@ -391,7 +399,7 @@ export default function SandboxPage() {
 
     // ── Cleanup ──
     return () => {
-      cancelAnimationFrame(rafId)
+      cancelAnimationFrame(animRafId)
       container.removeEventListener('mousedown', onMouseDown)
       window.removeEventListener('mouseup', onMouseUp)
       window.removeEventListener('mousemove', onMouseMove)
@@ -402,10 +410,10 @@ export default function SandboxPage() {
       renderer.dispose()
       if (container.contains(renderer.domElement)) container.removeChild(renderer.domElement)
     }
-  }, [])
+  }
 
   return (
-    <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+    <div style={{ position: 'fixed', inset: 0, display: 'flex', flexDirection: 'column' }}>
       {/* Header */}
       <div style={{
         position: 'absolute', top: 0, left: 0, right: 0, zIndex: 10,
@@ -425,10 +433,10 @@ export default function SandboxPage() {
         </span>
       </div>
 
-      {/* 3D Canvas 容器 */}
+      {/* 3D Canvas 容器：flex:1 撑满剩余高度 */}
       <div
         ref={containerRef}
-        style={{ width: '100%', height: '100%', touchAction: 'none' }}
+        style={{ flex: 1, width: '100%', touchAction: 'none' }}
       />
     </div>
   )
