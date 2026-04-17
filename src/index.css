@@ -1,0 +1,84 @@
+/* =============================================
+   HEALER DEMO — Design Tokens
+   所有颜色、字体、圆角、阴影统一在此定义
+   ============================================= */
+
+/* --- 时相背景（由 useTimePhase hook 动态写入） --- */
+:root {
+  --bg-h: 35;
+  --bg-s: 60%;
+  --bg-l: 97%;
+  --text-primary: rgba(60, 50, 40, 0.85);
+  --text-secondary: rgba(60, 50, 40, 0.5);
+}
+
+/* --- 固定品牌色 Token --- */
+:root {
+  /* 主色 */
+  --color-primary:    hsl(35, 80%, 60%);
+  --color-accent:     hsl(15, 70%, 60%);
+  --color-success:    hsl(145, 40%, 55%);
+
+  /* 背景/卡片（用于非时相区域） */
+  --color-bg:         hsl(40, 30%, 97%);
+  --color-card:       hsl(40, 20%, 95%);
+  --color-card-alt:   hsl(40, 15%, 92%);
+
+  /* 文字 */
+  --color-text:       hsl(30, 20%, 20%);
+  --color-text-sub:   hsl(30, 15%, 50%);
+
+  /* 情绪色谱（1-10）*/
+  --emotion-1:  hsl(210, 20%, 70%);
+  --emotion-3:  hsl(30, 15%, 65%);
+  --emotion-5:  hsl(35, 50%, 60%);
+  --emotion-7:  hsl(35, 80%, 60%);
+  --emotion-9:  hsl(15, 70%, 60%);
+
+  /* 圆角 */
+  --radius-lg:  20px;
+  --radius-md:  16px;
+  --radius-sm:  12px;
+  --radius-pill: 999px;
+
+  /* 阴影 */
+  --shadow-card: 0 4px 20px rgba(0, 0, 0, 0.06);
+  --shadow-sm:   0 2px 12px rgba(0, 0, 0, 0.04);
+  --shadow-modal:0 8px 32px rgba(0, 0, 0, 0.10);
+
+  /* 动画时长 */
+  --transition-fast: 150ms ease;
+  --transition-base: 250ms ease;
+  --transition-slow: 400ms ease;
+
+  /* 底部导航高度 */
+  --nav-height: 64px;
+}
+
+/* --- Reset --- */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body, #root {
+  height: 100%;
+  width: 100%;
+}
+
+body {
+  font-family: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  background: hsl(var(--bg-h), var(--bg-s), var(--bg-l));
+  color: var(--text-primary);
+  transition: background 1.5s ease, color 0.5s ease;
+  overflow: hidden;
+}
+
+button {
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+input, textarea {
+  font-family: inherit;
+}

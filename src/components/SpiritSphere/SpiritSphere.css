@@ -1,0 +1,90 @@
+/* =============================================
+   SpiritSphere — 灵智球样式
+   颜色全部使用 CSS Token，不硬编码
+   ============================================= */
+
+.spirit-sphere-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 220px;
+  height: 220px;
+}
+
+/* 外环波纹 */
+.sphere-ring {
+  position: absolute;
+  width: 160px;
+  height: 160px;
+  border-radius: 50%;
+  border: 1px solid var(--color-primary);
+  opacity: 0.3;
+  pointer-events: none;
+}
+
+/* 灵智球主体 */
+.spirit-sphere {
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle at 35% 35%,
+    hsl(var(--bg-h), calc(var(--bg-s) - 10%), calc(var(--bg-l) - 8%)),
+    var(--color-primary) 70%
+  );
+  box-shadow:
+    0 0 40px hsla(var(--bg-h), 60%, 60%, 0.4),
+    0 0 80px hsla(var(--bg-h), 60%, 60%, 0.15),
+    inset 0 -4px 12px rgba(0, 0, 0, 0.1);
+  cursor: pointer;
+  position: relative;
+  z-index: 2;
+  animation: breathe 4s ease-in-out infinite;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+
+@keyframes breathe {
+  0%, 100% { transform: scale(1); }
+  50%       { transform: scale(1.06); }
+}
+
+/* 涟漪叠层 */
+.ripple-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  z-index: 1;
+  overflow: hidden;
+  border-radius: 50%;
+}
+
+.ripple-circle {
+  position: absolute;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: hsla(var(--bg-h), 50%, 70%, 0.25);
+}
+
+.ripple-text {
+  position: absolute;
+  font-size: 13px;
+  letter-spacing: 0.1em;
+  color: var(--text-primary);
+  z-index: 3;
+}
+
+/* 底部提示文字 */
+.sphere-hint {
+  position: absolute;
+  bottom: -32px;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
