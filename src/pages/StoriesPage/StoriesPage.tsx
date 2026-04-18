@@ -7,15 +7,15 @@
 import { useNavigate } from 'react-router-dom'
 
 const MODULES = [
-  { icon: '🐚', title: '三件好事',   subtitle: '晚潮的馈赠', to: '/healing/three-good', locked: false },
+  { icon: '🐚', title: '三件好事',   subtitle: '晚潮的馈赠', to: '/healing/three-good',   locked: false },
   { icon: '🫙', title: '漂流瓶',     subtitle: '倾诉释放',   to: '/healing/drift-bottle', locked: false },
-  { icon: '🗼', title: '灯塔守护者', subtitle: '自悯回信',   to: '/healing/lighthouse',   locked: true,  unlockDay: 3 },
-  { icon: '🌬️', title: '呼吸练习',  subtitle: '自然疗愈',   to: '/healing/breathe',      locked: false },
+  { icon: '🗼', title: '灯塔守护者', subtitle: 'AI 情绪陪伴', to: '/healing/lighthouse',  locked: false },
+  { icon: '🌬️', title: '呼吸练习',  subtitle: '4-7-8 呼吸', to: '/healing/breathe',      locked: false },
 ]
 
 const DEEP_MODULES = [
-  { icon: '⛰️', title: '沙盘创作', subtitle: '心理投射', to: '/sandbox', locked: false },
-  { icon: '🌙', title: '梦境分析', subtitle: '潜意识探索', locked: true, unlockDay: 7 },
+  { icon: '⛰️', title: '沙盘创作', subtitle: '心理投射',   to: '/sandbox', locked: false },
+  { icon: '🌙', title: '梦境分析', subtitle: '潜意识探索', to: '/healing/dream', locked: false },
 ]
 
 export default function StoriesPage() {
@@ -59,14 +59,6 @@ export default function StoriesPage() {
               <div style={{ fontSize: '24px', marginBottom: '6px' }}>{m.icon}</div>
               <div style={{ fontSize: '14px', fontWeight: 500, color: 'var(--color-text)' }}>{m.title}</div>
               <div style={{ fontSize: '11px', color: 'var(--color-text-sub)', marginTop: '2px' }}>{m.subtitle}</div>
-              {m.locked && (
-                <div style={{
-                  position: 'absolute', top: '10px', right: '10px',
-                  fontSize: '10px', color: 'var(--color-text-sub)',
-                }}>
-                  🔒 {m.unlockDay}天解锁
-                </div>
-              )}
             </button>
           ))}
         </div>
@@ -102,10 +94,7 @@ export default function StoriesPage() {
                 <div style={{ fontSize: '14px', color: 'var(--color-text)' }}>{m.title}</div>
                 <div style={{ fontSize: '11px', color: 'var(--color-text-sub)' }}>{m.subtitle}</div>
               </div>
-              {m.locked
-                ? <span style={{ fontSize: '10px', color: 'var(--color-text-sub)' }}>🔒 {(m as {unlockDay:number}).unlockDay}天解锁</span>
-                : <span style={{ fontSize: '12px', color: 'var(--color-text-sub)' }}>→</span>
-              }
+              <span style={{ fontSize: '12px', color: 'var(--color-text-sub)' }}>→</span>
             </div>
           ))}
         </div>

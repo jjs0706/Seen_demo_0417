@@ -162,6 +162,63 @@
 
 ---
 
+## Step 8 — SandboxPage（等距沙盘 3D 场景）
+
+**做了什么：**
+- 将已有的 `realistic-therapy-sandbox-isom` Three.js 项目移植进 demo
+- 新建 `src/pages/SandboxPage/SandboxPage.tsx`，作为疗愈中心"深度探索"入口
+- 路由：`/sandbox`（从 StoriesPage 的探索卡片跳转）
+
+**技术实现：**
+- 纯 Vanilla Three.js（非 R3F），等距视角（isometric）
+- EffectComposer + ShaderPass 实现 tilt-shift（移轴）后处理效果
+- 用 `window.innerWidth / window.innerHeight` 初始化渲染器（不用 `container.clientWidth`，否则为 0）
+- 容器设为 `position: fixed; inset: 0`，防止高度塌陷
+- autoRotate + 拖拽旋转交互
+
+**踩坑记录：**
+1. **空白屏（第一次）：** 容器 div 高度为 0 → 改为 `position: fixed; inset: 0`
+2. **空白屏（第二次）：** `container.clientWidth` 在 useEffect 里仍为 0 → 改用 `window.innerWidth/Height`
+3. **Three.js `position` 只读报错：** `Object.assign(mesh, { position: new Vector3(...) })` 会报错（position 是 readonly getter）→ 改为 `mesh.position.set(x, y, z)`
+
+---
+
+## Step 9 — CottageStage（小屋花海场景）
+
+**做了什么：**
+- 新建 `src/pages/CabinPage/CottageStage.tsx`
+- 路由：`/cabin/stage`（从 CabinPage 进入按钮跳转）
+
+**背景层（油画图片）：**
+- 将油画照片 `/IMG_4472.JPG` 放入 `public/`
+- 用 CSS `position: absolute; backgroundImage: url(...)` 作底层背景
+- `backgroundSize: cover; backgroundPosition: center` 全屏覆盖
+
+**3D 模型层（R3F）：**
+- R3F Canvas 设 `gl={{ alpha: true }}`（透明背景），叠在图片之上
+- 使用 `useGLTF('/models/my_cottage.glb')` 加载小屋模型
+- `Suspense fallback={<LoadingBox />}` — 加载中显示奶白色占位方块
+- `useGLTF.preload('/models/my_cottage.glb')` 模块级预加载
+- `OrbitControls` 启用 `autoRotate`，禁用 pan，限制仰角防穿地
+
+**GLB 模型接入步骤（记录）：**
+1. 将 `tripo_convert_house.glb` 复制到 `public/models/my_cottage.glb`
+2. `CottageModel` 组件直接 `useGLTF('/models/my_cottage.glb')` 加载
+3. `<primitive object={scene} position={[0,-1,0]} scale={1.5} />` 渲染
+
+**文件结构：**
+```
+public/
+  IMG_4472.JPG          ← 油画背景图
+  models/
+    my_cottage.glb      ← 58MB 小屋 GLB 模型
+src/pages/CabinPage/
+  CabinPage.tsx         ← 小屋入口页（进入场景按钮）
+  CottageStage.tsx      ← 花海 + 3D 小屋场景页
+```
+
+---
+
 ## 待办（下一阶段）
 
 - [ ] 三件好事完整流程（预设 AI 回应）
@@ -169,4 +226,4 @@
 - [ ] 漂流瓶（15分钟倒计时 + 消失/保留选择）
 - [ ] 记录页多媒体（语音录制 + 图片上传）
 - [ ] 历史记录页（按日期分组列表）
-- [ ] 小屋场景 SVG（替换 emoji 占位）
+- [ ] 小屋 GLB 模型替换（当前已接入 tripo_convert_house.glb）

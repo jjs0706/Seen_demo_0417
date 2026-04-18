@@ -7,24 +7,14 @@ import CabinPage from './pages/CabinPage/CabinPage'
 import MePage from './pages/MePage/MePage'
 import SandboxPage from './pages/SandboxPage/SandboxPage'
 import CottageStage from './pages/CabinPage/CottageStage'
+import SandPage from './pages/SandPage/SandPage'
+import HistoryPage from './pages/HistoryPage/HistoryPage'
+import ThreeGoodPage from './pages/HealingPages/ThreeGoodPage'
+import BreathePage from './pages/HealingPages/BreathePage'
+import DriftBottlePage from './pages/HealingPages/DriftBottlePage'
+import LighthousePage from './pages/HealingPages/LighthousePage'
+import DreamPage from './pages/HealingPages/DreamPage'
 
-// 🔌 疗愈中心子页面（目前为占位，后续替换为真实实现）
-const ComingSoon = ({ title }: { title: string }) => (
-  <div style={{
-    height: '100%',
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingBottom: 'var(--nav-height)',
-    gap: '8px',
-    color: 'var(--color-text-sub)',
-  }}>
-    <div style={{ fontSize: '32px' }}>🌱</div>
-    <div style={{ fontSize: '15px' }}>{title}</div>
-    <div style={{ fontSize: '12px' }}>即将上线</div>
-  </div>
-)
 
 export default function App() {
   return (
@@ -37,17 +27,24 @@ export default function App() {
           <Route path="cabin" element={<CabinPage />} />
           <Route path="me" element={<MePage />} />
 
-          {/* 🔌 疗愈子页面插口 */}
-          <Route path="healing/three-good"   element={<ComingSoon title="三件好事" />} />
-          <Route path="healing/drift-bottle" element={<ComingSoon title="漂流瓶" />} />
-          <Route path="healing/breathe"      element={<ComingSoon title="呼吸练习" />} />
-          <Route path="healing/lighthouse"   element={<ComingSoon title="灯塔守护者" />} />
+          {/* 疗愈子页面 */}
+          <Route path="healing/three-good"   element={<ThreeGoodPage />} />
+          <Route path="healing/drift-bottle" element={<DriftBottlePage />} />
+          <Route path="healing/breathe"      element={<BreathePage />} />
+          <Route path="healing/lighthouse"   element={<LighthousePage />} />
+          <Route path="healing/dream"        element={<DreamPage />} />
 
           {/* 🔌 沙盘创作（Three.js 3D场景）*/}
           <Route path="sandbox" element={<SandboxPage />} />
 
           {/* 小屋花海场景（R3F）*/}
           <Route path="cabin/stage" element={<CottageStage />} />
+
+          {/* 🔌 交互沙盘（独立设计，后续接入小屋/疗愈）*/}
+          <Route path="sand" element={<SandPage />} />
+
+          {/* 情绪记录历史 */}
+          <Route path="history" element={<HistoryPage />} />
         </Route>
       </Routes>
     </BrowserRouter>

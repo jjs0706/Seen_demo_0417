@@ -4,9 +4,11 @@
 // 依赖数据：store.records / store.shells
 // ========================================
 
+import { useNavigate } from 'react-router-dom'
 import { useAppStore } from '../../store/appStore'
 
 export default function MePage() {
+  const navigate = useNavigate()
   const { shells, records } = useAppStore()
 
   const usageDays = (() => {
@@ -50,6 +52,29 @@ export default function MePage() {
             </div>
           </div>
         ))}
+      </div>
+
+      {/* 功能入口 */}
+      <div style={{
+        margin: '8px 16px',
+        background: 'var(--color-card)',
+        borderRadius: 'var(--radius-lg)',
+        overflow: 'hidden',
+        boxShadow: 'var(--shadow-card)',
+      }}>
+        <div
+          onClick={() => navigate('/history')}
+          style={{
+            padding: '14px 16px',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            cursor: 'pointer',
+          }}
+        >
+          <span style={{ fontSize: '14px', color: 'var(--color-text)' }}>📋 情绪记录</span>
+          <span style={{ fontSize: '12px', color: 'var(--color-text-sub)' }}>查看全部 →</span>
+        </div>
       </div>
 
       {/* 🔌 设置项占位 */}
