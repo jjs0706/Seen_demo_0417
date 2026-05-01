@@ -3,29 +3,42 @@ import { useFrame, type ThreeEvent } from '@react-three/fiber'
 import { useTexture } from '@react-three/drei'
 import * as THREE from 'three'
 import { OrbitCtx } from './SandPage'
+import { CELL, COLS, ROWS, footprintCenter, worldToTopLeft } from './gridConfig'
+
+export interface HighlightState {
+  x: number; z: number; w: number; h: number; free: boolean
+}
 
 interface SandSpriteProps {
+  uid: string
   textureUrl: string
   height?: number
+  gridW?: number
+  gridH?: number
   initialPosition?: [number, number, number]
   onRemove?: () => void
+  freeCells: (uid: string) => void
+  occupyCells: (uid: string, col: number, row: number, gw: number, gh: number) => void
+  findFreeCell: (col: number, row: number, gw: number, gh: number, excludeUid: string) => [number, number]
+  setHighlight: (h: HighlightState | null) => void
 }
 
 const GROUND_Y = 0.01
-const BOUNDS = { minX: -1.4, maxX: 1.4, minZ: -1.0, maxZ: 1.0 }
 const dragPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0)
 const hitPoint = new THREE.Vector3()
 
-function clamp(v: number, min: number, max: number) {
-  return Math.max(min, Math.min(max, v))
-}
-
-
 export default function SandSprite({
+  uid,
   textureUrl,
   height = 1.0,
+  gridW = 1,
+  gridH = 1,
   initialPosition = [0, 0, 0],
   onRemove,
+  freeCells,
+  occupyCells,
+  findFreeCell,
+  setHighlight,
 }: SandSpriteProps) {
   const texture = useTexture(textureUrl)
   const groupRef = useRef<THREE.Group>(null)
@@ -33,7 +46,6 @@ export default function SandSprite({
   const [dragging, setDragging] = useState(false)
   const orbitRef = useContext(OrbitCtx)
   const dragOffset = useRef(new THREE.Vector3())
-  // 缓存 canvas 避免每次点击重新绘制
   const alphaCanvas = useRef<HTMLCanvasElement | null>(null)
   const alphaCtx = useRef<CanvasRenderingContext2D | null>(null)
 
@@ -42,7 +54,7 @@ export default function SandSprite({
   const w = height * aspect
   const centerY = GROUND_Y + height / 2
 
-  // 初始化 alpha 采样 canvas（只做一次）
+  // 初始化 alpha 采样 canvas
   useEffect(() => {
     const image = texture.image as HTMLImageElement | null
     if (!image) return
@@ -56,7 +68,6 @@ export default function SandSprite({
     alphaCtx.current = ctx
   }, [texture])
 
-  // 检查 UV 对应的像素是否透明
   const isTransparent = useCallback((uv: THREE.Vector2): boolean => {
     const ctx = alphaCtx.current
     const c = alphaCanvas.current
@@ -68,8 +79,16 @@ export default function SandSprite({
       Math.max(0, Math.min(c.height - 1, py)),
       1, 1
     ).data
-    return data[3] < 30  // alpha < 30/255 视为透明
+    return data[3] < 30
   }, [])
+
+  // 判断世界坐标是否超出网格（底座）范围
+  const isOutOfBounds = (x: number, z: number) => {
+    const [col, row] = worldToTopLeft(x, z, gridW, gridH)
+    const [cx, cz] = footprintCenter(col, row, gridW, gridH)
+    const dx = Math.abs(x - cx), dz = Math.abs(z - cz)
+    return dx > COLS * CELL * 0.6 || dz > ROWS * CELL * 0.6
+  }
 
   useFrame(({ camera }) => {
     if (!groupRef.current) return
@@ -78,12 +97,11 @@ export default function SandSprite({
       camera.position.z - groupRef.current.position.z
     )
     groupRef.current.rotation.y = angle
-    const ty = dragging ? centerY + 0.12 : centerY
-    groupRef.current.position.y += (ty - groupRef.current.position.y) * 0.2
+    const ty = dragging ? centerY + 0.14 : centerY
+    groupRef.current.position.y += (ty - groupRef.current.position.y) * 0.18
   })
 
   const onPointerDown = useCallback((e: ThreeEvent<PointerEvent>) => {
-    // 如果点到透明区域，不处理（让事件穿透给后面的元素）
     if (e.uv && isTransparent(e.uv)) return
     e.stopPropagation()
     if (!groupRef.current) return
@@ -94,32 +112,54 @@ export default function SandSprite({
         groupRef.current.position.z - hitPoint.z
       )
     }
+    // 拖起时释放占用格
+    freeCells(uid)
     if (orbitRef.current) orbitRef.current.enabled = false
     setDragging(true)
-  }, [orbitRef, isTransparent])
+  }, [orbitRef, isTransparent, freeCells, uid])
 
   const onPointerMove = useCallback((e: ThreeEvent<PointerEvent>) => {
     if (!dragging || !groupRef.current) return
     e.stopPropagation()
     if (e.ray.intersectPlane(dragPlane, hitPoint)) {
-      // 拖拽时不 clamp，允许移出底座
-      groupRef.current.position.x = hitPoint.x + dragOffset.current.x
-      groupRef.current.position.z = hitPoint.z + dragOffset.current.z
+      const wx = hitPoint.x + dragOffset.current.x
+      const wz = hitPoint.z + dragOffset.current.z
+      groupRef.current.position.x = wx
+      groupRef.current.position.z = wz
+
+      // 计算吸附目标格子
+      const [col, row] = worldToTopLeft(wx, wz, gridW, gridH)
+      const [fc, fr] = findFreeCell(col, row, gridW, gridH, uid)
+      const [cx, cz] = footprintCenter(fc, fr, gridW, gridH)
+      const free = fc === col && fr === row
+      setHighlight({ x: cx, z: cz, w: gridW, h: gridH, free })
     }
-  }, [dragging])
+  }, [dragging, gridW, gridH, findFreeCell, uid, setHighlight])
 
   const onPointerUp = useCallback((e: ThreeEvent<PointerEvent>) => {
     if (!dragging) return
     e.stopPropagation()
     if (orbitRef.current) orbitRef.current.enabled = true
     setDragging(false)
-    // 松手时检查是否在底座外，若在外则删除
-    if (groupRef.current) {
-      const { x, z } = groupRef.current.position
-      const outside = x < BOUNDS.minX || x > BOUNDS.maxX || z < BOUNDS.minZ || z > BOUNDS.maxZ
-      if (outside) onRemove?.()
+    setHighlight(null)
+
+    if (!groupRef.current) return
+    const { x, z } = groupRef.current.position
+
+    // 拖出底座 → 删除
+    if (isOutOfBounds(x, z)) {
+      onRemove?.()
+      return
     }
-  }, [dragging, orbitRef, onRemove])
+
+    // 找最近空格并吸附
+    const [col, row] = worldToTopLeft(x, z, gridW, gridH)
+    const [fc, fr] = findFreeCell(col, row, gridW, gridH, uid)
+    const [cx, cz] = footprintCenter(fc, fr, gridW, gridH)
+    groupRef.current.position.x = cx
+    groupRef.current.position.z = cz
+    occupyCells(uid, fc, fr, gridW, gridH)
+  }, [dragging, orbitRef, gridW, gridH, findFreeCell, occupyCells, uid, onRemove, setHighlight])
 
   return (
     <group

@@ -1,11 +1,12 @@
-import { useState, Suspense, useRef, createContext } from 'react'
+import { useState, Suspense, useRef, createContext, useCallback } from 'react'
 import { Canvas, useThree, useFrame } from '@react-three/fiber'
 import { OrbitControls, useTexture } from '@react-three/drei'
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib'
 import type { ThreeEvent } from '@react-three/fiber'
 import * as THREE from 'three'
 import { useNavigate } from 'react-router-dom'
-import SandSprite from './SandSprite'
+import SandSprite, { type HighlightState } from './SandSprite'
+import { CELL, COLS, ROWS, footprintCenter, worldToTopLeft } from './gridConfig'
 
 // OrbitControls ref 共享给子组件
 export const OrbitCtx = createContext<React.RefObject<OrbitControlsImpl | null>>({ current: null })
@@ -13,15 +14,48 @@ export const OrbitCtx = createContext<React.RefObject<OrbitControlsImpl | null>>
 // 预加载所有贴图，防止添加时闪烁
 const ALL_URLS = [
   '/sandbox/base03.png',
-  '/sandbox/house.png','/sandbox/tent.png','/sandbox/lighthouse.png','/sandbox/fence.png','/sandbox/sign.png',
-  '/sandbox/cherry.png','/sandbox/oak.png','/sandbox/daisy.png','/sandbox/silver.png','/sandbox/foxtail.png','/sandbox/crystal.png','/sandbox/kite.png',
-  '/sandbox/cat.png','/sandbox/bird.png',
+  '/sandbox/house.png', '/sandbox/tent.png', '/sandbox/lighthouse.png', '/sandbox/fence.png', '/sandbox/sign.png',
+  '/sandbox/cherry.png', '/sandbox/oak.png', '/sandbox/daisy.png', '/sandbox/silver.png', '/sandbox/foxtail.png', '/sandbox/crystal.png', '/sandbox/kite.png',
+  '/sandbox/cat.png', '/sandbox/bird.png',
 ]
 ALL_URLS.forEach(u => useTexture.preload(u))
 
-// ── 自定义平移平面（只在放大时生效，只允许左右）─────────────
-const ZOOM_THRESHOLD = 6.5   // 相机距离小于此值视为"放大状态"
-const PAN_LIMIT = 1.2        // 左右平移上限（单位）
+// ── 底座 ──────────────────────────────────────────────────────
+function Base() {
+  const texture = useTexture('/sandbox/base03.png')
+  const img = texture.image as HTMLImageElement | undefined
+  const aspect = img ? img.naturalWidth / img.naturalHeight : 1
+  const w = 3.8
+  const d = w / aspect
+  return (
+    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]}>
+      <planeGeometry args={[w, d]} />
+      <meshBasicMaterial map={texture} transparent alphaTest={0.05} />
+    </mesh>
+  )
+}
+
+// ── 高亮格子 ──────────────────────────────────────────────────
+function HighlightCell({ highlight }: { highlight: HighlightState | null }) {
+  if (!highlight) return null
+  const pw = highlight.w * CELL - 0.03
+  const ph = highlight.h * CELL - 0.03
+  return (
+    <mesh position={[highlight.x, 0.018, highlight.z]} rotation={[-Math.PI / 2, 0, 0]}>
+      <planeGeometry args={[pw, ph]} />
+      <meshBasicMaterial
+        color="white"
+        transparent
+        opacity={highlight.free ? 0.55 : 0.2}
+        depthWrite={false}
+      />
+    </mesh>
+  )
+}
+
+// ── 自定义平移平面（放大后才能左右拖）────────────────────────
+const ZOOM_THRESHOLD = 6.8
+const PAN_LIMIT = 1.2
 
 function PanPlane({ orbitRef }: { orbitRef: React.RefObject<OrbitControlsImpl | null> }) {
   const { camera } = useThree()
@@ -43,22 +77,14 @@ function PanPlane({ orbitRef }: { orbitRef: React.RefObject<OrbitControlsImpl | 
   const onPointerMove = (e: ThreeEvent<PointerEvent>) => {
     if (!dragging.current || !orbitRef.current) return
     const ctrl = orbitRef.current
-
-    // 用屏幕像素差换算世界坐标偏移，避免 e.point 随相机移动而漂移
     const clientDx = e.nativeEvent.clientX - lastClientX.current
     lastClientX.current = e.nativeEvent.clientX
-
     const dist = camera.position.distanceTo(ctrl.target)
     const fovRad = (camera as THREE.PerspectiveCamera).fov * (Math.PI / 180)
     const worldPerPixel = (2 * Math.tan(fovRad / 2) * dist) / window.innerHeight
-
     const dx = clientDx * worldPerPixel
-
-    // 计算新 target.x（带限制）
     const newX = Math.max(-PAN_LIMIT, Math.min(PAN_LIMIT, ctrl.target.x - dx))
     const actualDx = newX - ctrl.target.x
-
-    // target 和 camera 同步平移，保持视角方向不变
     ctrl.target.x += actualDx
     ctrl.object.position.x += actualDx
     ctrl.update()
@@ -69,7 +95,6 @@ function PanPlane({ orbitRef }: { orbitRef: React.RefObject<OrbitControlsImpl | 
     if (orbitRef.current) orbitRef.current.enabled = true
   }
 
-  // 每帧锁死 Y/Z，缩回正常时平滑归位
   useFrame(() => {
     const ctrl = orbitRef.current
     if (!ctrl) return
@@ -98,59 +123,42 @@ function PanPlane({ orbitRef }: { orbitRef: React.RefObject<OrbitControlsImpl | 
   )
 }
 
-// ── 底座 ──────────────────────────────────────────────────────
-function Base() {
-  const texture = useTexture('/sandbox/base03.png')
-  const img = texture.image as HTMLImageElement | undefined
-  const aspect = img ? img.naturalWidth / img.naturalHeight : 1
-  const w = 3.8
-  const d = w / aspect
-  return (
-    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]}>
-      <planeGeometry args={[w, d]} />
-      <meshBasicMaterial map={texture} transparent alphaTest={0.05} />
-    </mesh>
-  )
-}
-
-// ── 素材目录（分类）─────────────────────────────────────────
+// ── 素材目录 ──────────────────────────────────────────────────
 const CATEGORIES = [
   {
     label: '全部', id: 'all',
-    items: [] as { id: string; label: string; url: string; height: number }[],
+    items: [] as { id: string; label: string; url: string; height: number; gridW: number; gridH: number }[],
   },
   {
     label: '建筑', id: 'building',
     items: [
-      { id: 'house',      label: '小屋',   url: '/sandbox/house.png',      height: 0.85 },
-      { id: 'tent',       label: '帐篷',   url: '/sandbox/tent.png',       height: 0.75 },
-      { id: 'lighthouse', label: '灯塔',   url: '/sandbox/lighthouse.png', height: 1.10 },
-      { id: 'fence',      label: '栅栏',   url: '/sandbox/fence.png',      height: 0.35 },
-      { id: 'sign',       label: '路牌',   url: '/sandbox/sign.png',       height: 0.45 },
+      { id: 'house',      label: '小屋',   url: '/sandbox/house.png',      height: 0.85, gridW: 2, gridH: 2 },
+      { id: 'tent',       label: '帐篷',   url: '/sandbox/tent.png',       height: 0.75, gridW: 2, gridH: 2 },
+      { id: 'lighthouse', label: '灯塔',   url: '/sandbox/lighthouse.png', height: 1.10, gridW: 1, gridH: 2 },
+      { id: 'fence',      label: '栅栏',   url: '/sandbox/fence.png',      height: 0.35, gridW: 3, gridH: 1 },
+      { id: 'sign',       label: '路牌',   url: '/sandbox/sign.png',       height: 0.45, gridW: 1, gridH: 1 },
     ],
   },
   {
     label: '自然', id: 'nature',
     items: [
-      { id: 'cherry',   label: '樱花树', url: '/sandbox/cherry.png',   height: 0.75 },
-      { id: 'oak',      label: '橡树',   url: '/sandbox/oak.png',      height: 0.70 },
-      { id: 'daisy',    label: '小雏菊', url: '/sandbox/daisy.png',    height: 0.40 },
-      { id: 'silver',   label: '银叶菊', url: '/sandbox/silver.png',   height: 0.28 },
-      { id: 'foxtail',  label: '狗尾草', url: '/sandbox/foxtail.png',  height: 0.45 },
-      { id: 'crystal',  label: '水晶石', url: '/sandbox/crystal.png',  height: 0.38 },
-      { id: 'kite',     label: '风筝',   url: '/sandbox/kite.png',     height: 0.40 },
+      { id: 'cherry',  label: '樱花树', url: '/sandbox/cherry.png',  height: 0.75, gridW: 2, gridH: 2 },
+      { id: 'oak',     label: '橡树',   url: '/sandbox/oak.png',     height: 0.70, gridW: 2, gridH: 2 },
+      { id: 'daisy',   label: '小雏菊', url: '/sandbox/daisy.png',   height: 0.40, gridW: 1, gridH: 1 },
+      { id: 'silver',  label: '银叶菊', url: '/sandbox/silver.png',  height: 0.28, gridW: 1, gridH: 1 },
+      { id: 'foxtail', label: '狗尾草', url: '/sandbox/foxtail.png', height: 0.45, gridW: 1, gridH: 1 },
+      { id: 'crystal', label: '水晶石', url: '/sandbox/crystal.png', height: 0.38, gridW: 1, gridH: 1 },
+      { id: 'kite',    label: '风筝',   url: '/sandbox/kite.png',    height: 0.40, gridW: 1, gridH: 1 },
     ],
   },
   {
     label: '生物', id: 'creature',
     items: [
-      { id: 'cat',  label: '猫咪', url: '/sandbox/cat.png',  height: 0.30 },
-      { id: 'bird', label: '白鸟', url: '/sandbox/bird.png', height: 0.28 },
+      { id: 'cat',  label: '猫咪', url: '/sandbox/cat.png',  height: 0.30, gridW: 1, gridH: 1 },
+      { id: 'bird', label: '白鸟', url: '/sandbox/bird.png', height: 0.28, gridW: 1, gridH: 1 },
     ],
   },
 ]
-
-// 补全「全部」分类
 CATEGORIES[0].items = CATEGORIES.slice(1).flatMap(c => c.items)
 
 type CatalogItem = typeof CATEGORIES[0]['items'][0]
@@ -159,27 +167,82 @@ interface PlacedItem {
   uid: string
   url: string
   height: number
+  gridW: number
+  gridH: number
   position: [number, number, number]
 }
 
-let uid = 0
+let uidCounter = 0
 
 export default function SandPage() {
   const navigate = useNavigate()
   const orbitRef = useRef<OrbitControlsImpl>(null)
   const [items, setItems] = useState<PlacedItem[]>([])
   const [activeTab, setActiveTab] = useState('all')
+  const [highlight, setHighlight] = useState<HighlightState | null>(null)
+
+  // 占用表：key = "col,row"，value = uid
+  const occupiedMap = useRef<Map<string, string>>(new Map())
 
   const currentItems = CATEGORIES.find(c => c.id === activeTab)?.items ?? []
 
-  const addItem = (c: CatalogItem) => {
-    const x = (Math.random() - 0.5) * 1.6
-    const z = (Math.random() - 0.5) * 1.0
+  // ── 占用管理 ────────────────────────────────────────────────
+  const freeCells = useCallback((uid: string) => {
+    for (const [key, val] of occupiedMap.current)
+      if (val === uid) occupiedMap.current.delete(key)
+  }, [])
+
+  const occupyCells = useCallback((uid: string, col: number, row: number, gw: number, gh: number) => {
+    for (let c = col; c < col + gw; c++)
+      for (let r = row; r < row + gh; r++)
+        occupiedMap.current.set(`${c},${r}`, uid)
+  }, [])
+
+  const findFreeCell = useCallback((
+    targetCol: number, targetRow: number,
+    gw: number, gh: number,
+    excludeUid: string
+  ): [number, number] => {
+    const isFree = (c: number, r: number) => {
+      if (c < 0 || r < 0 || c + gw > COLS || r + gh > ROWS) return false
+      for (let dc = 0; dc < gw; dc++)
+        for (let dr = 0; dr < gh; dr++) {
+          const occ = occupiedMap.current.get(`${c + dc},${r + dr}`)
+          if (occ && occ !== excludeUid) return false
+        }
+      return true
+    }
+    if (isFree(targetCol, targetRow)) return [targetCol, targetRow]
+    // 螺旋向外搜索最近空格
+    for (let radius = 1; radius <= Math.max(COLS, ROWS); radius++) {
+      for (let dc = -radius; dc <= radius; dc++) {
+        for (let dr = -radius; dr <= radius; dr++) {
+          if (Math.abs(dc) !== radius && Math.abs(dr) !== radius) continue
+          if (isFree(targetCol + dc, targetRow + dr))
+            return [targetCol + dc, targetRow + dr]
+        }
+      }
+    }
+    return [targetCol, targetRow]
+  }, [])
+
+  // ── 添加素材 ────────────────────────────────────────────────
+  const addItem = (cat: CatalogItem) => {
+    const { gridW: gw, gridH: gh } = cat
+    // 从中心随机散开找空格
+    const sc = Math.max(0, Math.min(COLS - gw, Math.floor(COLS / 2 - gw / 2) + Math.round((Math.random() - 0.5) * 4)))
+    const sr = Math.max(0, Math.min(ROWS - gh, Math.floor(ROWS / 2 - gh / 2) + Math.round((Math.random() - 0.5) * 3)))
+    const newUid = `i${uidCounter++}`
+    const [fc, fr] = findFreeCell(sc, sr, gw, gh, newUid)
+    const [wx, wz] = footprintCenter(fc, fr, gw, gh)
+    occupyCells(newUid, fc, fr, gw, gh)
     setItems(prev => [...prev, {
-      uid: `i${uid++}`,
-      url: c.url,
-      height: c.height,
-      position: [x, 0, z],
+      uid: newUid,
+      url: cat.url,
+      height: cat.height,
+      gridW: gw,
+      gridH: gh,
+      position: [wx, 0, wz],
     }])
   }
 
@@ -212,35 +275,48 @@ export default function SandPage() {
         <ambientLight intensity={1.8} />
         <directionalLight position={[5, 8, 5]} intensity={0.5} />
 
-        {/* 只开缩放，pan 完全交给 PanPlane 自己管 */}
+        {/* 只开缩放；maxDistance 锁定初始全貌视距 */}
         <OrbitControls
           ref={orbitRef}
           enableRotate={false}
           enablePan={false}
           enableZoom={true}
           minDistance={3}
-          maxDistance={12}
+          maxDistance={7.1}
           zoomSpeed={1.2}
           touches={{ ONE: THREE.TOUCH.DOLLY_PAN, TWO: THREE.TOUCH.DOLLY_PAN }}
         />
 
-        {/* 自定义平移平面（放大后才能左右拖） */}
+        {/* 放大后才能左右平移的自定义平面 */}
         <PanPlane orbitRef={orbitRef} />
 
-        {/* 底座单独 Suspense，不受元素加载影响 */}
+        {/* 底座 */}
         <Suspense fallback={null}>
           <Base />
         </Suspense>
 
-        {/* 每个元素单独 Suspense，互不影响 */}
+        {/* 高亮格子 */}
+        <HighlightCell highlight={highlight} />
+
+        {/* 每个素材独立 Suspense */}
         <OrbitCtx.Provider value={orbitRef}>
           {items.map(item => (
             <Suspense key={item.uid} fallback={null}>
               <SandSprite
+                uid={item.uid}
                 textureUrl={item.url}
                 height={item.height}
+                gridW={item.gridW}
+                gridH={item.gridH}
                 initialPosition={item.position}
-                onRemove={() => setItems(prev => prev.filter(i => i.uid !== item.uid))}
+                freeCells={freeCells}
+                occupyCells={occupyCells}
+                findFreeCell={findFreeCell}
+                setHighlight={setHighlight}
+                onRemove={() => {
+                  freeCells(item.uid)
+                  setItems(prev => prev.filter(i => i.uid !== item.uid))
+                }}
               />
             </Suspense>
           ))}
@@ -263,13 +339,8 @@ export default function SandPage() {
               key={cat.id}
               onClick={() => setActiveTab(cat.id)}
               style={{
-                flexShrink: 0,
-                padding: '4px 12px',
-                borderRadius: 20,
-                border: 'none',
-                fontSize: 12,
-                fontWeight: 500,
-                cursor: 'pointer',
+                flexShrink: 0, padding: '4px 12px', borderRadius: 20,
+                border: 'none', fontSize: 12, fontWeight: 500, cursor: 'pointer',
                 background: activeTab === cat.id ? 'rgba(80,120,80,0.85)' : 'rgba(255,255,255,0.7)',
                 color: activeTab === cat.id ? '#fff' : 'rgba(0,0,0,0.55)',
                 boxShadow: activeTab === cat.id ? '0 2px 6px rgba(0,0,0,0.15)' : 'none',
@@ -288,8 +359,7 @@ export default function SandPage() {
               key={item.id}
               onClick={() => addItem(item)}
               style={{
-                flexShrink: 0,
-                width: 68, height: 80,
+                flexShrink: 0, width: 68, height: 80,
                 background: 'rgba(255,255,255,0.75)',
                 border: '1px solid rgba(255,255,255,0.85)',
                 borderRadius: 14,
