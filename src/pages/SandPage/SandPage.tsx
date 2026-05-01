@@ -9,11 +9,13 @@ import SandSprite from './SandSprite'
 export const OrbitCtx = createContext<React.RefObject<OrbitControlsImpl | null>>({ current: null })
 
 // 预加载所有贴图，防止添加时闪烁
-useTexture.preload('/sandbox/base.png')
-useTexture.preload('/sandbox/cherry.png')
-useTexture.preload('/sandbox/oak.png')
-useTexture.preload('/sandbox/daisy.png')
-useTexture.preload('/sandbox/silver.png')
+const ALL_URLS = [
+  '/sandbox/base.png',
+  '/sandbox/house.png','/sandbox/tent.png','/sandbox/lighthouse.png','/sandbox/fence.png','/sandbox/sign.png',
+  '/sandbox/cherry.png','/sandbox/oak.png','/sandbox/daisy.png','/sandbox/silver.png','/sandbox/foxtail.png','/sandbox/crystal.png','/sandbox/kite.png',
+  '/sandbox/cat.png','/sandbox/bird.png',
+]
+ALL_URLS.forEach(u => useTexture.preload(u))
 
 // ── 底座 ──────────────────────────────────────────────────────
 function Base() {
@@ -30,13 +32,47 @@ function Base() {
   )
 }
 
-// ── 素材目录 ──────────────────────────────────────────────────
-const CATALOG = [
-  { id: 'cherry', label: '樱花树', url: '/sandbox/cherry.png', height: 0.75 },
-  { id: 'oak',    label: '橡树',   url: '/sandbox/oak.png',    height: 0.70 },
-  { id: 'daisy',  label: '小雏菊', url: '/sandbox/daisy.png',  height: 0.40 },
-  { id: 'silver', label: '银叶菊', url: '/sandbox/silver.png', height: 0.28 },
+// ── 素材目录（分类）─────────────────────────────────────────
+const CATEGORIES = [
+  {
+    label: '全部', id: 'all',
+    items: [] as { id: string; label: string; url: string; height: number }[],
+  },
+  {
+    label: '建筑', id: 'building',
+    items: [
+      { id: 'house',      label: '小屋',   url: '/sandbox/house.png',      height: 0.85 },
+      { id: 'tent',       label: '帐篷',   url: '/sandbox/tent.png',       height: 0.75 },
+      { id: 'lighthouse', label: '灯塔',   url: '/sandbox/lighthouse.png', height: 1.10 },
+      { id: 'fence',      label: '栅栏',   url: '/sandbox/fence.png',      height: 0.35 },
+      { id: 'sign',       label: '路牌',   url: '/sandbox/sign.png',       height: 0.45 },
+    ],
+  },
+  {
+    label: '自然', id: 'nature',
+    items: [
+      { id: 'cherry',   label: '樱花树', url: '/sandbox/cherry.png',   height: 0.75 },
+      { id: 'oak',      label: '橡树',   url: '/sandbox/oak.png',      height: 0.70 },
+      { id: 'daisy',    label: '小雏菊', url: '/sandbox/daisy.png',    height: 0.40 },
+      { id: 'silver',   label: '银叶菊', url: '/sandbox/silver.png',   height: 0.28 },
+      { id: 'foxtail',  label: '狗尾草', url: '/sandbox/foxtail.png',  height: 0.45 },
+      { id: 'crystal',  label: '水晶石', url: '/sandbox/crystal.png',  height: 0.38 },
+      { id: 'kite',     label: '风筝',   url: '/sandbox/kite.png',     height: 0.40 },
+    ],
+  },
+  {
+    label: '生物', id: 'creature',
+    items: [
+      { id: 'cat',  label: '猫咪', url: '/sandbox/cat.png',  height: 0.30 },
+      { id: 'bird', label: '白鸟', url: '/sandbox/bird.png', height: 0.28 },
+    ],
+  },
 ]
+
+// 补全「全部」分类
+CATEGORIES[0].items = CATEGORIES.slice(1).flatMap(c => c.items)
+
+type CatalogItem = typeof CATEGORIES[0]['items'][0]
 
 interface PlacedItem {
   uid: string
@@ -51,8 +87,11 @@ export default function SandPage() {
   const navigate = useNavigate()
   const orbitRef = useRef<OrbitControlsImpl>(null)
   const [items, setItems] = useState<PlacedItem[]>([])
+  const [activeTab, setActiveTab] = useState('all')
 
-  const addItem = (c: typeof CATALOG[0]) => {
+  const currentItems = CATEGORIES.find(c => c.id === activeTab)?.items ?? []
+
+  const addItem = (c: CatalogItem) => {
     const x = (Math.random() - 0.5) * 1.6
     const z = (Math.random() - 0.5) * 1.0
     setItems(prev => [...prev, {
@@ -121,24 +160,48 @@ export default function SandPage() {
       {/* 底部抽屉 */}
       <div style={{
         position: 'absolute', bottom: 0, left: 0, right: 0,
-        padding: '14px 16px 36px',
+        padding: '12px 0 32px',
         background: 'rgba(255,255,255,0.55)',
         backdropFilter: 'blur(20px)',
         borderTop: '1px solid rgba(255,255,255,0.6)',
         boxShadow: '0 -4px 24px rgba(0,0,0,0.06)',
       }}>
-        <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.4)', marginBottom: 10, letterSpacing: '0.06em' }}>
-          点击添加 · 拖拽移动
+        {/* 分类 Tab */}
+        <div style={{ display: 'flex', gap: 6, padding: '0 14px 10px', overflowX: 'auto' }}>
+          {CATEGORIES.map(cat => (
+            <button
+              key={cat.id}
+              onClick={() => setActiveTab(cat.id)}
+              style={{
+                flexShrink: 0,
+                padding: '4px 12px',
+                borderRadius: 20,
+                border: 'none',
+                fontSize: 12,
+                fontWeight: 500,
+                cursor: 'pointer',
+                background: activeTab === cat.id ? 'rgba(80,120,80,0.85)' : 'rgba(255,255,255,0.7)',
+                color: activeTab === cat.id ? '#fff' : 'rgba(0,0,0,0.55)',
+                boxShadow: activeTab === cat.id ? '0 2px 6px rgba(0,0,0,0.15)' : 'none',
+                transition: 'all 0.15s',
+              }}
+            >
+              {cat.label}
+            </button>
+          ))}
         </div>
-        <div style={{ display: 'flex', gap: 10 }}>
-          {CATALOG.map(item => (
+
+        {/* 素材列表 */}
+        <div style={{ display: 'flex', gap: 8, padding: '0 14px', overflowX: 'auto' }}>
+          {currentItems.map(item => (
             <button
               key={item.id}
               onClick={() => addItem(item)}
               style={{
-                flex: 1, height: 80,
-                background: 'rgba(255,255,255,0.7)',
-                border: '1px solid rgba(255,255,255,0.8)',
+                flexShrink: 0,
+                width: 68, height: 80,
+                background: 'rgba(255,255,255,0.75)',
+                border: '1px solid rgba(255,255,255,0.85)',
                 borderRadius: 14,
                 display: 'flex', flexDirection: 'column',
                 alignItems: 'center', justifyContent: 'center',
@@ -147,7 +210,7 @@ export default function SandPage() {
               }}
             >
               <img src={item.url} alt={item.label}
-                style={{ width: 42, height: 42, objectFit: 'contain' }} />
+                style={{ width: 40, height: 40, objectFit: 'contain' }} />
               <span style={{ fontSize: 10, color: '#555', fontWeight: 500 }}>{item.label}</span>
             </button>
           ))}
