@@ -135,13 +135,23 @@ export default function SandPage() {
         <OrbitControls
           ref={orbitRef}
           enableRotate={false}
-          enablePan={false}
+          enablePan={true}
+          panSpeed={0.8}
+          screenSpacePanning={true}
           enableZoom={true}
           minDistance={3}
           maxDistance={14}
           zoomSpeed={1.2}
           target={[0, 0, 0]}
-          touches={{ ONE: THREE.TOUCH.DOLLY_PAN, TWO: THREE.TOUCH.DOLLY_PAN }}
+          mouseButtons={{ LEFT: THREE.MOUSE.PAN, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.PAN }}
+          touches={{ ONE: THREE.TOUCH.PAN, TWO: THREE.TOUCH.DOLLY_PAN }}
+          onChange={() => {
+            const ctrl = orbitRef.current
+            if (!ctrl) return
+            ctrl.target.y = 0
+            ctrl.target.z = 0
+            ctrl.target.x = Math.max(-1, Math.min(1, ctrl.target.x))
+          }}
         />
 
         {/* 底座单独 Suspense，不受元素加载影响 */}
