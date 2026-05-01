@@ -2,6 +2,7 @@ import { useState, Suspense, useRef, createContext } from 'react'
 import { Canvas } from '@react-three/fiber'
 import { OrbitControls, useTexture } from '@react-three/drei'
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib'
+import * as THREE from 'three'
 import { useNavigate } from 'react-router-dom'
 import SandSprite from './SandSprite'
 
@@ -141,6 +142,8 @@ export default function SandPage() {
           maxDistance={14}
           zoomSpeed={1.2}
           target={[0, 0, 0]}
+          mouseButtons={{ LEFT: THREE.MOUSE.PAN, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.PAN }}
+          touches={{ ONE: THREE.TOUCH.PAN, TWO: THREE.TOUCH.DOLLY_PAN }}
         />
 
         {/* 底座单独 Suspense，不受元素加载影响 */}
