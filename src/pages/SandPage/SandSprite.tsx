@@ -3,11 +3,7 @@ import { useFrame, type ThreeEvent } from '@react-three/fiber'
 import { useTexture } from '@react-three/drei'
 import * as THREE from 'three'
 import { OrbitCtx } from './SandPage'
-import { CELL, COLS, ROWS, footprintCenter, worldToTopLeft } from './gridConfig'
-
-export interface HighlightState {
-  x: number; z: number; w: number; h: number; free: boolean
-}
+import { CELL, COLS, ROWS, OX, OZ, footprintCenter, worldToTopLeft } from './gridConfig'
 
 interface SandSpriteProps {
   uid: string
@@ -20,12 +16,20 @@ interface SandSpriteProps {
   freeCells: (uid: string) => void
   occupyCells: (uid: string, col: number, row: number, gw: number, gh: number) => void
   findFreeCell: (col: number, row: number, gw: number, gh: number, excludeUid: string) => [number, number]
-  setHighlight: (h: HighlightState | null) => void
 }
 
 const GROUND_Y = 0.01
 const dragPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0)
 const hitPoint = new THREE.Vector3()
+
+// 是否超出网格范围（带一点容差）
+function isOutOfBounds(x: number, z: number) {
+  const margin = CELL * 1.5
+  return (
+    x < OX - margin || x > OX + COLS * CELL + margin ||
+    z < OZ - margin || z > OZ + ROWS * CELL + margin
+  )
+}
 
 export default function SandSprite({
   uid,
@@ -38,7 +42,6 @@ export default function SandSprite({
   freeCells,
   occupyCells,
   findFreeCell,
-  setHighlight,
 }: SandSpriteProps) {
   const texture = useTexture(textureUrl)
   const groupRef = useRef<THREE.Group>(null)
@@ -54,7 +57,6 @@ export default function SandSprite({
   const w = height * aspect
   const centerY = GROUND_Y + height / 2
 
-  // 初始化 alpha 采样 canvas
   useEffect(() => {
     const image = texture.image as HTMLImageElement | null
     if (!image) return
@@ -82,14 +84,6 @@ export default function SandSprite({
     return data[3] < 30
   }, [])
 
-  // 判断世界坐标是否超出网格（底座）范围
-  const isOutOfBounds = (x: number, z: number) => {
-    const [col, row] = worldToTopLeft(x, z, gridW, gridH)
-    const [cx, cz] = footprintCenter(col, row, gridW, gridH)
-    const dx = Math.abs(x - cx), dz = Math.abs(z - cz)
-    return dx > COLS * CELL * 0.6 || dz > ROWS * CELL * 0.6
-  }
-
   useFrame(({ camera }) => {
     if (!groupRef.current) return
     const angle = Math.atan2(
@@ -99,6 +93,15 @@ export default function SandSprite({
     groupRef.current.rotation.y = angle
     const ty = dragging ? centerY + 0.14 : centerY
     groupRef.current.position.y += (ty - groupRef.current.position.y) * 0.18
+
+    // 拖动中：超出底座就删除
+    if (dragging) {
+      const { x, z } = groupRef.current.position
+      if (isOutOfBounds(x, z)) {
+        freeCells(uid)
+        onRemove?.()
+      }
+    }
   })
 
   const onPointerDown = useCallback((e: ThreeEvent<PointerEvent>) => {
@@ -112,7 +115,6 @@ export default function SandSprite({
         groupRef.current.position.z - hitPoint.z
       )
     }
-    // 拖起时释放占用格
     freeCells(uid)
     if (orbitRef.current) orbitRef.current.enabled = false
     setDragging(true)
@@ -122,44 +124,33 @@ export default function SandSprite({
     if (!dragging || !groupRef.current) return
     e.stopPropagation()
     if (e.ray.intersectPlane(dragPlane, hitPoint)) {
-      const wx = hitPoint.x + dragOffset.current.x
-      const wz = hitPoint.z + dragOffset.current.z
-      groupRef.current.position.x = wx
-      groupRef.current.position.z = wz
-
-      // 计算吸附目标格子
-      const [col, row] = worldToTopLeft(wx, wz, gridW, gridH)
-      const [fc, fr] = findFreeCell(col, row, gridW, gridH, uid)
-      const [cx, cz] = footprintCenter(fc, fr, gridW, gridH)
-      const free = fc === col && fr === row
-      setHighlight({ x: cx, z: cz, w: gridW, h: gridH, free })
+      groupRef.current.position.x = hitPoint.x + dragOffset.current.x
+      groupRef.current.position.z = hitPoint.z + dragOffset.current.z
     }
-  }, [dragging, gridW, gridH, findFreeCell, uid, setHighlight])
+  }, [dragging])
 
   const onPointerUp = useCallback((e: ThreeEvent<PointerEvent>) => {
     if (!dragging) return
     e.stopPropagation()
     if (orbitRef.current) orbitRef.current.enabled = true
     setDragging(false)
-    setHighlight(null)
 
     if (!groupRef.current) return
     const { x, z } = groupRef.current.position
 
-    // 拖出底座 → 删除
     if (isOutOfBounds(x, z)) {
       onRemove?.()
       return
     }
 
-    // 找最近空格并吸附
-    const [col, row] = worldToTopLeft(x, z, gridW, gridH)
-    const [fc, fr] = findFreeCell(col, row, gridW, gridH, uid)
+    // 吸附到最近空格
+    const [tc, tr] = worldToTopLeft(x, z, gridW, gridH)
+    const [fc, fr] = findFreeCell(tc, tr, gridW, gridH, uid)
     const [cx, cz] = footprintCenter(fc, fr, gridW, gridH)
     groupRef.current.position.x = cx
     groupRef.current.position.z = cz
     occupyCells(uid, fc, fr, gridW, gridH)
-  }, [dragging, orbitRef, gridW, gridH, findFreeCell, occupyCells, uid, onRemove, setHighlight])
+  }, [dragging, orbitRef, gridW, gridH, findFreeCell, occupyCells, uid, onRemove])
 
   return (
     <group

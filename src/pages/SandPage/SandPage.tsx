@@ -1,17 +1,15 @@
-import { useState, Suspense, useRef, createContext, useCallback } from 'react'
+import { useState, Suspense, useRef, createContext, useCallback, useEffect } from 'react'
 import { Canvas, useThree, useFrame } from '@react-three/fiber'
 import { OrbitControls, useTexture } from '@react-three/drei'
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib'
 import type { ThreeEvent } from '@react-three/fiber'
 import * as THREE from 'three'
 import { useNavigate } from 'react-router-dom'
-import SandSprite, { type HighlightState } from './SandSprite'
-import { CELL, COLS, ROWS, footprintCenter, worldToTopLeft } from './gridConfig'
+import SandSprite from './SandSprite'
+import { CELL, COLS, ROWS, OX, OZ, footprintCenter, worldToTopLeft } from './gridConfig'
 
-// OrbitControls ref 共享给子组件
 export const OrbitCtx = createContext<React.RefObject<OrbitControlsImpl | null>>({ current: null })
 
-// 预加载所有贴图，防止添加时闪烁
 const ALL_URLS = [
   '/sandbox/base03.png',
   '/sandbox/house.png', '/sandbox/tent.png', '/sandbox/lighthouse.png', '/sandbox/fence.png', '/sandbox/sign.png',
@@ -35,25 +33,14 @@ function Base() {
   )
 }
 
-// ── 高亮格子 ──────────────────────────────────────────────────
-function HighlightCell({ highlight }: { highlight: HighlightState | null }) {
-  if (!highlight) return null
-  const pw = highlight.w * CELL - 0.03
-  const ph = highlight.h * CELL - 0.03
-  return (
-    <mesh position={[highlight.x, 0.018, highlight.z]} rotation={[-Math.PI / 2, 0, 0]}>
-      <planeGeometry args={[pw, ph]} />
-      <meshBasicMaterial
-        color="white"
-        transparent
-        opacity={highlight.free ? 0.55 : 0.2}
-        depthWrite={false}
-      />
-    </mesh>
-  )
+// ── 相机捕获（供屏幕坐标转世界坐标用）────────────────────────
+function CameraCapture({ camRef }: { camRef: React.MutableRefObject<THREE.Camera | null> }) {
+  const { camera } = useThree()
+  useEffect(() => { camRef.current = camera }, [camera, camRef])
+  return null
 }
 
-// ── 自定义平移平面（放大后才能左右拖）────────────────────────
+// ── 放大后才能平移的平面 ──────────────────────────────────────
 const ZOOM_THRESHOLD = 6.8
 const PAN_LIMIT = 1.2
 
@@ -109,14 +96,9 @@ function PanPlane({ orbitRef }: { orbitRef: React.RefObject<OrbitControlsImpl | 
   })
 
   return (
-    <mesh
-      rotation={[-Math.PI / 2, 0, 0]}
-      position={[0, -0.01, 0]}
-      onPointerDown={onPointerDown}
-      onPointerMove={onPointerMove}
-      onPointerUp={onPointerUp}
-      onPointerLeave={onPointerUp}
-    >
+    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.01, 0]}
+      onPointerDown={onPointerDown} onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp} onPointerLeave={onPointerUp}>
       <planeGeometry args={[30, 30]} />
       <meshBasicMaterial transparent opacity={0} depthWrite={false} />
     </mesh>
@@ -164,11 +146,8 @@ CATEGORIES[0].items = CATEGORIES.slice(1).flatMap(c => c.items)
 type CatalogItem = typeof CATEGORIES[0]['items'][0]
 
 interface PlacedItem {
-  uid: string
-  url: string
-  height: number
-  gridW: number
-  gridH: number
+  uid: string; url: string; height: number
+  gridW: number; gridH: number
   position: [number, number, number]
 }
 
@@ -177,13 +156,16 @@ let uidCounter = 0
 export default function SandPage() {
   const navigate = useNavigate()
   const orbitRef = useRef<OrbitControlsImpl>(null)
+  const camRef = useRef<THREE.Camera | null>(null)
   const [items, setItems] = useState<PlacedItem[]>([])
   const [activeTab, setActiveTab] = useState('all')
-  const [highlight, setHighlight] = useState<HighlightState | null>(null)
 
-  // 占用表：key = "col,row"，value = uid
+  // 抽屉拖拽状态
+  const [dragCatalog, setDragCatalog] = useState<CatalogItem | null>(null)
+  const [ghostPos, setGhostPos] = useState({ x: 0, y: 0 })
+  const dragCatalogRef = useRef<CatalogItem | null>(null)
+
   const occupiedMap = useRef<Map<string, string>>(new Map())
-
   const currentItems = CATEGORIES.find(c => c.id === activeTab)?.items ?? []
 
   // ── 占用管理 ────────────────────────────────────────────────
@@ -199,9 +181,7 @@ export default function SandPage() {
   }, [])
 
   const findFreeCell = useCallback((
-    targetCol: number, targetRow: number,
-    gw: number, gh: number,
-    excludeUid: string
+    tc: number, tr: number, gw: number, gh: number, excludeUid: string
   ): [number, number] => {
     const isFree = (c: number, r: number) => {
       if (c < 0 || r < 0 || c + gw > COLS || r + gh > ROWS) return false
@@ -212,39 +192,67 @@ export default function SandPage() {
         }
       return true
     }
-    if (isFree(targetCol, targetRow)) return [targetCol, targetRow]
-    // 螺旋向外搜索最近空格
-    for (let radius = 1; radius <= Math.max(COLS, ROWS); radius++) {
-      for (let dc = -radius; dc <= radius; dc++) {
+    if (isFree(tc, tr)) return [tc, tr]
+    for (let radius = 1; radius <= Math.max(COLS, ROWS); radius++)
+      for (let dc = -radius; dc <= radius; dc++)
         for (let dr = -radius; dr <= radius; dr++) {
           if (Math.abs(dc) !== radius && Math.abs(dr) !== radius) continue
-          if (isFree(targetCol + dc, targetRow + dr))
-            return [targetCol + dc, targetRow + dr]
+          if (isFree(tc + dc, tr + dr)) return [tc + dc, tr + dr]
         }
-      }
-    }
-    return [targetCol, targetRow]
+    return [tc, tr]
   }, [])
 
-  // ── 添加素材 ────────────────────────────────────────────────
-  const addItem = (cat: CatalogItem) => {
+  // ── 屏幕坐标 → 世界坐标 → 放置 ────────────────────────────
+  const placeAtScreen = useCallback((clientX: number, clientY: number) => {
+    const cat = dragCatalogRef.current
+    if (!cat || !camRef.current) return
+
+    const canvas = document.querySelector('canvas')
+    if (!canvas) return
+    const rect = canvas.getBoundingClientRect()
+    if (clientX < rect.left || clientX > rect.right || clientY < rect.top || clientY > rect.bottom) return
+
+    const ndx = ((clientX - rect.left) / rect.width) * 2 - 1
+    const ndy = -((clientY - rect.top) / rect.height) * 2 + 1
+    const ray = new THREE.Raycaster()
+    ray.setFromCamera(new THREE.Vector2(ndx, ndy), camRef.current)
+    const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0)
+    const pt = new THREE.Vector3()
+    if (!ray.ray.intersectPlane(plane, pt)) return
+
+    // 判断是否落在底座范围内
+    const rawCol = (pt.x - OX) / CELL
+    const rawRow = (pt.z - OZ) / CELL
+    if (rawCol < 0 || rawRow < 0 || rawCol >= COLS || rawRow >= ROWS) return
+
     const { gridW: gw, gridH: gh } = cat
-    // 从中心随机散开找空格
-    const sc = Math.max(0, Math.min(COLS - gw, Math.floor(COLS / 2 - gw / 2) + Math.round((Math.random() - 0.5) * 4)))
-    const sr = Math.max(0, Math.min(ROWS - gh, Math.floor(ROWS / 2 - gh / 2) + Math.round((Math.random() - 0.5) * 3)))
+    const [tc, tr] = worldToTopLeft(pt.x, pt.z, gw, gh)
     const newUid = `i${uidCounter++}`
-    const [fc, fr] = findFreeCell(sc, sr, gw, gh, newUid)
+    const [fc, fr] = findFreeCell(tc, tr, gw, gh, newUid)
     const [wx, wz] = footprintCenter(fc, fr, gw, gh)
     occupyCells(newUid, fc, fr, gw, gh)
     setItems(prev => [...prev, {
-      uid: newUid,
-      url: cat.url,
-      height: cat.height,
-      gridW: gw,
-      gridH: gh,
-      position: [wx, 0, wz],
+      uid: newUid, url: cat.url, height: cat.height,
+      gridW: gw, gridH: gh, position: [wx, 0, wz],
     }])
-  }
+  }, [findFreeCell, occupyCells])
+
+  // ── 抽屉拖拽事件监听 ────────────────────────────────────────
+  useEffect(() => {
+    if (!dragCatalog) return
+    const onMove = (e: PointerEvent) => setGhostPos({ x: e.clientX, y: e.clientY })
+    const onUp = (e: PointerEvent) => {
+      placeAtScreen(e.clientX, e.clientY)
+      setDragCatalog(null)
+      dragCatalogRef.current = null
+    }
+    window.addEventListener('pointermove', onMove)
+    window.addEventListener('pointerup', onUp)
+    return () => {
+      window.removeEventListener('pointermove', onMove)
+      window.removeEventListener('pointerup', onUp)
+    }
+  }, [dragCatalog, placeAtScreen])
 
   return (
     <div style={{
@@ -252,30 +260,47 @@ export default function SandPage() {
       backgroundImage: 'url(/sandbox/bg01.png)',
       backgroundSize: 'cover',
       backgroundPosition: 'center',
+      userSelect: 'none',
     }}>
       {/* 关闭按钮 */}
-      <button
-        onClick={() => navigate(-1)}
-        style={{
-          position: 'absolute', top: 20, left: 20, zIndex: 10,
-          width: 40, height: 40, borderRadius: 12,
-          background: 'rgba(255,255,255,0.7)',
-          backdropFilter: 'blur(8px)',
-          border: 'none', fontSize: 18, cursor: 'pointer',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          boxShadow: '0 2px 8px rgba(0,0,0,0.12)',
-        }}
-      >✕</button>
+      <button onClick={() => navigate(-1)} style={{
+        position: 'absolute', top: 20, left: 20, zIndex: 10,
+        width: 40, height: 40, borderRadius: 12,
+        background: 'rgba(255,255,255,0.7)', backdropFilter: 'blur(8px)',
+        border: 'none', fontSize: 18, cursor: 'pointer',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        boxShadow: '0 2px 8px rgba(0,0,0,0.12)',
+      }}>✕</button>
+
+      {/* 拖拽中的幽灵图片 */}
+      {dragCatalog && (
+        <img
+          src={dragCatalog.url}
+          alt=""
+          style={{
+            position: 'fixed',
+            left: ghostPos.x - 30,
+            top: ghostPos.y - 44,
+            width: 60, height: 60,
+            objectFit: 'contain',
+            pointerEvents: 'none',
+            zIndex: 50,
+            opacity: 0.85,
+            filter: 'drop-shadow(0 4px 8px rgba(0,0,0,0.3))',
+            transform: 'scale(1.15)',
+          }}
+        />
+      )}
 
       <Canvas
         gl={{ alpha: true, antialias: true }}
         camera={{ position: [0, 5, 5], fov: 38 }}
         style={{ position: 'absolute', inset: 0 }}
       >
+        <CameraCapture camRef={camRef} />
         <ambientLight intensity={1.8} />
         <directionalLight position={[5, 8, 5]} intensity={0.5} />
 
-        {/* 只开缩放；maxDistance 锁定初始全貌视距 */}
         <OrbitControls
           ref={orbitRef}
           enableRotate={false}
@@ -287,18 +312,12 @@ export default function SandPage() {
           touches={{ ONE: THREE.TOUCH.DOLLY_PAN, TWO: THREE.TOUCH.DOLLY_PAN }}
         />
 
-        {/* 放大后才能左右平移的自定义平面 */}
         <PanPlane orbitRef={orbitRef} />
 
-        {/* 底座 */}
         <Suspense fallback={null}>
           <Base />
         </Suspense>
 
-        {/* 高亮格子 */}
-        <HighlightCell highlight={highlight} />
-
-        {/* 每个素材独立 Suspense */}
         <OrbitCtx.Provider value={orbitRef}>
           {items.map(item => (
             <Suspense key={item.uid} fallback={null}>
@@ -312,7 +331,6 @@ export default function SandPage() {
                 freeCells={freeCells}
                 occupyCells={occupyCells}
                 findFreeCell={findFreeCell}
-                setHighlight={setHighlight}
                 onRemove={() => {
                   freeCells(item.uid)
                   setItems(prev => prev.filter(i => i.uid !== item.uid))
@@ -332,23 +350,22 @@ export default function SandPage() {
         borderTop: '1px solid rgba(255,255,255,0.6)',
         boxShadow: '0 -4px 24px rgba(0,0,0,0.06)',
       }}>
+        {/* 提示文字 */}
+        <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.35)', padding: '0 14px 8px', letterSpacing: '0.05em' }}>
+          长按拖拽到沙盘放置 · 拖出底座删除
+        </div>
+
         {/* 分类 Tab */}
         <div style={{ display: 'flex', gap: 6, padding: '0 14px 10px', overflowX: 'auto' }}>
           {CATEGORIES.map(cat => (
-            <button
-              key={cat.id}
-              onClick={() => setActiveTab(cat.id)}
-              style={{
-                flexShrink: 0, padding: '4px 12px', borderRadius: 20,
-                border: 'none', fontSize: 12, fontWeight: 500, cursor: 'pointer',
-                background: activeTab === cat.id ? 'rgba(80,120,80,0.85)' : 'rgba(255,255,255,0.7)',
-                color: activeTab === cat.id ? '#fff' : 'rgba(0,0,0,0.55)',
-                boxShadow: activeTab === cat.id ? '0 2px 6px rgba(0,0,0,0.15)' : 'none',
-                transition: 'all 0.15s',
-              }}
-            >
-              {cat.label}
-            </button>
+            <button key={cat.id} onClick={() => setActiveTab(cat.id)} style={{
+              flexShrink: 0, padding: '4px 12px', borderRadius: 20,
+              border: 'none', fontSize: 12, fontWeight: 500, cursor: 'pointer',
+              background: activeTab === cat.id ? 'rgba(80,120,80,0.85)' : 'rgba(255,255,255,0.7)',
+              color: activeTab === cat.id ? '#fff' : 'rgba(0,0,0,0.55)',
+              boxShadow: activeTab === cat.id ? '0 2px 6px rgba(0,0,0,0.15)' : 'none',
+              transition: 'all 0.15s',
+            }}>{cat.label}</button>
           ))}
         </div>
 
@@ -357,7 +374,12 @@ export default function SandPage() {
           {currentItems.map(item => (
             <button
               key={item.id}
-              onClick={() => addItem(item)}
+              onPointerDown={e => {
+                e.preventDefault()
+                dragCatalogRef.current = item
+                setDragCatalog(item)
+                setGhostPos({ x: e.clientX, y: e.clientY })
+              }}
               style={{
                 flexShrink: 0, width: 68, height: 80,
                 background: 'rgba(255,255,255,0.75)',
@@ -365,13 +387,14 @@ export default function SandPage() {
                 borderRadius: 14,
                 display: 'flex', flexDirection: 'column',
                 alignItems: 'center', justifyContent: 'center',
-                gap: 4, cursor: 'pointer', padding: '6px 4px',
+                gap: 4, cursor: 'grab', padding: '6px 4px',
                 boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+                touchAction: 'none',
               }}
             >
               <img src={item.url} alt={item.label}
-                style={{ width: 40, height: 40, objectFit: 'contain' }} />
-              <span style={{ fontSize: 10, color: '#555', fontWeight: 500 }}>{item.label}</span>
+                style={{ width: 40, height: 40, objectFit: 'contain', pointerEvents: 'none' }} />
+              <span style={{ fontSize: 10, color: '#555', fontWeight: 500, pointerEvents: 'none' }}>{item.label}</span>
             </button>
           ))}
         </div>
