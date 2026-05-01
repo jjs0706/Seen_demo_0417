@@ -105,7 +105,9 @@ export default function SandPage() {
   return (
     <div style={{
       position: 'fixed', inset: 0,
-      background: 'linear-gradient(170deg, #cddcea 0%, #dde8dd 100%)',
+      backgroundImage: 'url(/sandbox/bg01.png)',
+      backgroundSize: 'cover',
+      backgroundPosition: 'center',
     }}>
       {/* 关闭按钮 */}
       <button
@@ -132,7 +134,8 @@ export default function SandPage() {
         <OrbitControls
           ref={orbitRef}
           enableRotate={false}
-          enablePan={false}
+          enablePan={true}
+          panSpeed={0.8}
           enableZoom={true}
           minDistance={3}
           maxDistance={14}
