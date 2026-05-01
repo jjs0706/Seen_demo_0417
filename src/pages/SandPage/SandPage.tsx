@@ -26,24 +26,41 @@ const PAN_LIMIT = 1.2        // 左右平移上限（单位）
 function PanPlane({ orbitRef }: { orbitRef: React.RefObject<OrbitControlsImpl | null> }) {
   const { camera } = useThree()
   const dragging = useRef(false)
-  const lastX = useRef(0)
+  const lastClientX = useRef(0)
 
-  const isZoomedIn = () => camera.position.length() < ZOOM_THRESHOLD
+  const isZoomedIn = () => camera.position.distanceTo(
+    orbitRef.current ? orbitRef.current.target : new THREE.Vector3()
+  ) < ZOOM_THRESHOLD
 
   const onPointerDown = (e: ThreeEvent<PointerEvent>) => {
     if (!isZoomedIn()) return
     e.stopPropagation()
     dragging.current = true
-    lastX.current = e.point.x
+    lastClientX.current = e.nativeEvent.clientX
     if (orbitRef.current) orbitRef.current.enabled = false
   }
 
   const onPointerMove = (e: ThreeEvent<PointerEvent>) => {
     if (!dragging.current || !orbitRef.current) return
-    const dx = e.point.x - lastX.current
-    lastX.current = e.point.x
     const ctrl = orbitRef.current
-    ctrl.target.x = Math.max(-PAN_LIMIT, Math.min(PAN_LIMIT, ctrl.target.x - dx))
+
+    // 用屏幕像素差换算世界坐标偏移，避免 e.point 随相机移动而漂移
+    const clientDx = e.nativeEvent.clientX - lastClientX.current
+    lastClientX.current = e.nativeEvent.clientX
+
+    const dist = camera.position.distanceTo(ctrl.target)
+    const fovRad = (camera as THREE.PerspectiveCamera).fov * (Math.PI / 180)
+    const worldPerPixel = (2 * Math.tan(fovRad / 2) * dist) / window.innerHeight
+
+    const dx = clientDx * worldPerPixel
+
+    // 计算新 target.x（带限制）
+    const newX = Math.max(-PAN_LIMIT, Math.min(PAN_LIMIT, ctrl.target.x - dx))
+    const actualDx = newX - ctrl.target.x
+
+    // target 和 camera 同步平移，保持视角方向不变
+    ctrl.target.x += actualDx
+    ctrl.object.position.x += actualDx
     ctrl.update()
   }
 
@@ -52,15 +69,16 @@ function PanPlane({ orbitRef }: { orbitRef: React.RefObject<OrbitControlsImpl | 
     if (orbitRef.current) orbitRef.current.enabled = true
   }
 
-  // 每帧保证 target Y/Z 不漂移
+  // 每帧锁死 Y/Z，缩回正常时平滑归位
   useFrame(() => {
     const ctrl = orbitRef.current
     if (!ctrl) return
     ctrl.target.y = 0
     ctrl.target.z = 0
-    // 缩回正常视距时，平滑归位
     if (!isZoomedIn()) {
-      ctrl.target.x += (0 - ctrl.target.x) * 0.1
+      const snap = (0 - ctrl.target.x) * 0.1
+      ctrl.target.x += snap
+      ctrl.object.position.x += snap
       ctrl.update()
     }
   })
