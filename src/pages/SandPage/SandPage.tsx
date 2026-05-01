@@ -137,6 +137,7 @@ export default function SandPage() {
           enableRotate={false}
           enablePan={true}
           panSpeed={0.8}
+          screenSpacePanning={false}
           enableZoom={true}
           minDistance={3}
           maxDistance={14}
