@@ -11,7 +11,7 @@ import { CELL, COLS, ROWS, OX, OZ, footprintCenter, worldToTopLeft } from './gri
 export const OrbitCtx = createContext<React.RefObject<OrbitControlsImpl | null>>({ current: null })
 
 const ALL_URLS = [
-  '/sandbox/base03.png',
+  '/sandbox/base.png',
   '/sandbox/house.png', '/sandbox/tent.png', '/sandbox/lighthouse.png', '/sandbox/fence.png', '/sandbox/sign.png',
   '/sandbox/cherry.png', '/sandbox/oak.png', '/sandbox/daisy.png', '/sandbox/silver.png', '/sandbox/foxtail.png', '/sandbox/crystal.png', '/sandbox/kite.png',
   '/sandbox/cat.png', '/sandbox/bird.png',
@@ -20,7 +20,7 @@ ALL_URLS.forEach(u => useTexture.preload(u))
 
 // ── 底座 ──────────────────────────────────────────────────────
 function Base() {
-  const texture = useTexture('/sandbox/base03.png')
+  const texture = useTexture('/sandbox/base.png')
   const img = texture.image as HTMLImageElement | undefined
   const aspect = img ? img.naturalWidth / img.naturalHeight : 1
   const w = 3.8
