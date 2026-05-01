@@ -1,5 +1,5 @@
 import { useRef, useState, useCallback, useContext, useEffect } from 'react'
-import { useFrame, type ThreeEvent } from '@react-three/fiber'
+import { useFrame, useThree, type ThreeEvent } from '@react-three/fiber'
 import { useTexture } from '@react-three/drei'
 import * as THREE from 'three'
 import { OrbitCtx } from './SandPage'
@@ -20,11 +20,9 @@ interface SandSpriteProps {
 
 const GROUND_Y = 0.01
 const dragPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0)
-const hitPoint = new THREE.Vector3()
 
-// 是否超出网格范围（带一点容差）
 function isOutOfBounds(x: number, z: number) {
-  const margin = CELL * 1.5
+  const margin = CELL * 2
   return (
     x < OX - margin || x > OX + COLS * CELL + margin ||
     z < OZ - margin || z > OZ + ROWS * CELL + margin
@@ -44,6 +42,7 @@ export default function SandSprite({
   findFreeCell,
 }: SandSpriteProps) {
   const texture = useTexture(textureUrl)
+  const { camera, gl } = useThree()
   const groupRef = useRef<THREE.Group>(null)
   const meshRef = useRef<THREE.Mesh>(null)
   const [dragging, setDragging] = useState(false)
@@ -84,81 +83,95 @@ export default function SandSprite({
     return data[3] < 30
   }, [])
 
-  useFrame(({ camera }) => {
+  // 屏幕坐标 → 地面交点
+  const screenToGround = useCallback((clientX: number, clientY: number): THREE.Vector3 | null => {
+    const rect = gl.domElement.getBoundingClientRect()
+    const ndx = ((clientX - rect.left) / rect.width) * 2 - 1
+    const ndy = -((clientY - rect.top) / rect.height) * 2 + 1
+    const ray = new THREE.Raycaster()
+    ray.setFromCamera(new THREE.Vector2(ndx, ndy), camera)
+    const pt = new THREE.Vector3()
+    return ray.ray.intersectPlane(dragPlane, pt) ? pt : null
+  }, [camera, gl])
+
+  useFrame(({ camera: cam }) => {
     if (!groupRef.current) return
     const angle = Math.atan2(
-      camera.position.x - groupRef.current.position.x,
-      camera.position.z - groupRef.current.position.z
+      cam.position.x - groupRef.current.position.x,
+      cam.position.z - groupRef.current.position.z
     )
     groupRef.current.rotation.y = angle
     const ty = dragging ? centerY + 0.14 : centerY
     groupRef.current.position.y += (ty - groupRef.current.position.y) * 0.18
-
-    // 拖动中：超出底座就删除
-    if (dragging) {
-      const { x, z } = groupRef.current.position
-      if (isOutOfBounds(x, z)) {
-        freeCells(uid)
-        onRemove?.()
-      }
-    }
   })
 
   const onPointerDown = useCallback((e: ThreeEvent<PointerEvent>) => {
     if (e.uv && isTransparent(e.uv)) return
     e.stopPropagation()
     if (!groupRef.current) return
-    if (e.ray.intersectPlane(dragPlane, hitPoint)) {
+
+    // 计算拖拽偏移
+    const pt = screenToGround(e.nativeEvent.clientX, e.nativeEvent.clientY)
+    if (pt) {
       dragOffset.current.set(
-        groupRef.current.position.x - hitPoint.x,
+        groupRef.current.position.x - pt.x,
         0,
-        groupRef.current.position.z - hitPoint.z
+        groupRef.current.position.z - pt.z
       )
     }
+
     freeCells(uid)
     if (orbitRef.current) orbitRef.current.enabled = false
     setDragging(true)
-  }, [orbitRef, isTransparent, freeCells, uid])
 
-  const onPointerMove = useCallback((e: ThreeEvent<PointerEvent>) => {
-    if (!dragging || !groupRef.current) return
-    e.stopPropagation()
-    if (e.ray.intersectPlane(dragPlane, hitPoint)) {
-      groupRef.current.position.x = hitPoint.x + dragOffset.current.x
-      groupRef.current.position.z = hitPoint.z + dragOffset.current.z
-    }
-  }, [dragging])
-
-  const onPointerUp = useCallback((e: ThreeEvent<PointerEvent>) => {
-    if (!dragging) return
-    e.stopPropagation()
-    if (orbitRef.current) orbitRef.current.enabled = true
-    setDragging(false)
-
-    if (!groupRef.current) return
-    const { x, z } = groupRef.current.position
-
-    if (isOutOfBounds(x, z)) {
-      onRemove?.()
-      return
+    // 用 window 级别事件，保证拖到画面外也能追踪
+    const onWindowMove = (ev: PointerEvent) => {
+      if (!groupRef.current) return
+      const hit = screenToGround(ev.clientX, ev.clientY)
+      if (hit) {
+        groupRef.current.position.x = hit.x + dragOffset.current.x
+        groupRef.current.position.z = hit.z + dragOffset.current.z
+      }
     }
 
-    // 吸附到最近空格
-    const [tc, tr] = worldToTopLeft(x, z, gridW, gridH)
-    const [fc, fr] = findFreeCell(tc, tr, gridW, gridH, uid)
-    const [cx, cz] = footprintCenter(fc, fr, gridW, gridH)
-    groupRef.current.position.x = cx
-    groupRef.current.position.z = cz
-    occupyCells(uid, fc, fr, gridW, gridH)
-  }, [dragging, orbitRef, gridW, gridH, findFreeCell, occupyCells, uid, onRemove])
+    const onWindowUp = (ev: PointerEvent) => {
+      window.removeEventListener('pointermove', onWindowMove)
+      window.removeEventListener('pointerup', onWindowUp)
+      if (orbitRef.current) orbitRef.current.enabled = true
+      setDragging(false)
+
+      if (!groupRef.current) return
+      const { x, z } = groupRef.current.position
+
+      // 松手在画面外，或超出底座范围 → 删除
+      const rect = gl.domElement.getBoundingClientRect()
+      const outsideScreen = (
+        ev.clientX < rect.left || ev.clientX > rect.right ||
+        ev.clientY < rect.top  || ev.clientY > rect.bottom
+      )
+      if (outsideScreen || isOutOfBounds(x, z)) {
+        onRemove?.()
+        return
+      }
+
+      // 吸附到最近空格
+      const [tc, tr] = worldToTopLeft(x, z, gridW, gridH)
+      const [fc, fr] = findFreeCell(tc, tr, gridW, gridH, uid)
+      const [cx, cz] = footprintCenter(fc, fr, gridW, gridH)
+      groupRef.current.position.x = cx
+      groupRef.current.position.z = cz
+      occupyCells(uid, fc, fr, gridW, gridH)
+    }
+
+    window.addEventListener('pointermove', onWindowMove)
+    window.addEventListener('pointerup', onWindowUp)
+  }, [isTransparent, screenToGround, freeCells, uid, orbitRef, gl, gridW, gridH, findFreeCell, occupyCells, onRemove])
 
   return (
     <group
       ref={groupRef}
       position={[initialPosition[0], centerY, initialPosition[2]]}
       onPointerDown={onPointerDown}
-      onPointerMove={onPointerMove}
-      onPointerUp={onPointerUp}
     >
       <mesh ref={meshRef}>
         <planeGeometry args={[w, height]} />
