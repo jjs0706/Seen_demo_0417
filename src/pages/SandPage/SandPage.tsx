@@ -10,7 +10,7 @@ export const OrbitCtx = createContext<React.RefObject<OrbitControlsImpl | null>>
 
 // 预加载所有贴图，防止添加时闪烁
 const ALL_URLS = [
-  '/sandbox/base.png',
+  '/sandbox/base03.png',
   '/sandbox/house.png','/sandbox/tent.png','/sandbox/lighthouse.png','/sandbox/fence.png','/sandbox/sign.png',
   '/sandbox/cherry.png','/sandbox/oak.png','/sandbox/daisy.png','/sandbox/silver.png','/sandbox/foxtail.png','/sandbox/crystal.png','/sandbox/kite.png',
   '/sandbox/cat.png','/sandbox/bird.png',
@@ -19,7 +19,7 @@ ALL_URLS.forEach(u => useTexture.preload(u))
 
 // ── 底座 ──────────────────────────────────────────────────────
 function Base() {
-  const texture = useTexture('/sandbox/base.png')
+  const texture = useTexture('/sandbox/base03.png')
   const img = texture.image as HTMLImageElement | undefined
   const aspect = img ? img.naturalWidth / img.naturalHeight : 1
   const w = 3.8
@@ -133,8 +133,10 @@ export default function SandPage() {
           ref={orbitRef}
           enableRotate={false}
           enablePan={false}
-          minDistance={4}
-          maxDistance={10}
+          enableZoom={true}
+          minDistance={3}
+          maxDistance={14}
+          zoomSpeed={1.2}
           target={[0, 0, 0]}
         />
 
