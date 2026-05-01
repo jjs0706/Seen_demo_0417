@@ -109,35 +109,35 @@ function PanPlane({ orbitRef }: { orbitRef: React.RefObject<OrbitControlsImpl | 
 const CATEGORIES = [
   {
     label: '全部', id: 'all',
-    items: [] as { id: string; label: string; url: string; height: number; gridW: number; gridH: number }[],
+    items: [] as { id: string; label: string; url: string; height: number }[],
   },
   {
     label: '建筑', id: 'building',
     items: [
-      { id: 'house',      label: '小屋',   url: '/sandbox/house.png',      height: 0.85, gridW: 2, gridH: 2 },
-      { id: 'tent',       label: '帐篷',   url: '/sandbox/tent.png',       height: 0.75, gridW: 2, gridH: 2 },
-      { id: 'lighthouse', label: '灯塔',   url: '/sandbox/lighthouse.png', height: 1.10, gridW: 1, gridH: 2 },
-      { id: 'fence',      label: '栅栏',   url: '/sandbox/fence.png',      height: 0.35, gridW: 3, gridH: 1 },
-      { id: 'sign',       label: '路牌',   url: '/sandbox/sign.png',       height: 0.45, gridW: 1, gridH: 1 },
+      { id: 'house',      label: '小屋',   url: '/sandbox/house.png',      height: 0.85 },
+      { id: 'tent',       label: '帐篷',   url: '/sandbox/tent.png',       height: 0.75 },
+      { id: 'lighthouse', label: '灯塔',   url: '/sandbox/lighthouse.png', height: 1.10 },
+      { id: 'fence',      label: '栅栏',   url: '/sandbox/fence.png',      height: 0.35 },
+      { id: 'sign',       label: '路牌',   url: '/sandbox/sign.png',       height: 0.45 },
     ],
   },
   {
     label: '自然', id: 'nature',
     items: [
-      { id: 'cherry',  label: '樱花树', url: '/sandbox/cherry.png',  height: 0.75, gridW: 2, gridH: 2 },
-      { id: 'oak',     label: '橡树',   url: '/sandbox/oak.png',     height: 0.70, gridW: 2, gridH: 2 },
-      { id: 'daisy',   label: '小雏菊', url: '/sandbox/daisy.png',   height: 0.40, gridW: 1, gridH: 1 },
-      { id: 'silver',  label: '银叶菊', url: '/sandbox/silver.png',  height: 0.28, gridW: 1, gridH: 1 },
-      { id: 'foxtail', label: '狗尾草', url: '/sandbox/foxtail.png', height: 0.45, gridW: 1, gridH: 1 },
-      { id: 'crystal', label: '水晶石', url: '/sandbox/crystal.png', height: 0.38, gridW: 1, gridH: 1 },
-      { id: 'kite',    label: '风筝',   url: '/sandbox/kite.png',    height: 0.40, gridW: 1, gridH: 1 },
+      { id: 'cherry',  label: '樱花树', url: '/sandbox/cherry.png',  height: 0.75 },
+      { id: 'oak',     label: '橡树',   url: '/sandbox/oak.png',     height: 0.70 },
+      { id: 'daisy',   label: '小雏菊', url: '/sandbox/daisy.png',   height: 0.40 },
+      { id: 'silver',  label: '银叶菊', url: '/sandbox/silver.png',  height: 0.28 },
+      { id: 'foxtail', label: '狗尾草', url: '/sandbox/foxtail.png', height: 0.45 },
+      { id: 'crystal', label: '水晶石', url: '/sandbox/crystal.png', height: 0.38 },
+      { id: 'kite',    label: '风筝',   url: '/sandbox/kite.png',    height: 0.40 },
     ],
   },
   {
     label: '生物', id: 'creature',
     items: [
-      { id: 'cat',  label: '猫咪', url: '/sandbox/cat.png',  height: 0.30, gridW: 1, gridH: 1 },
-      { id: 'bird', label: '白鸟', url: '/sandbox/bird.png', height: 0.28, gridW: 1, gridH: 1 },
+      { id: 'cat',  label: '猫咪', url: '/sandbox/cat.png',  height: 0.30 },
+      { id: 'bird', label: '白鸟', url: '/sandbox/bird.png', height: 0.28 },
     ],
   },
 ]
@@ -147,7 +147,6 @@ type CatalogItem = typeof CATEGORIES[0]['items'][0]
 
 interface PlacedItem {
   uid: string; url: string; height: number
-  gridW: number; gridH: number
   position: [number, number, number]
 }
 
@@ -225,15 +224,13 @@ export default function SandPage() {
     const rawRow = (pt.z - OZ) / CELL
     if (rawCol < 0 || rawRow < 0 || rawCol >= COLS || rawRow >= ROWS) return
 
-    const { gridW: gw, gridH: gh } = cat
-    const [tc, tr] = worldToTopLeft(pt.x, pt.z, gw, gh)
+    const [tc, tr] = worldToTopLeft(pt.x, pt.z, 1, 1)
     const newUid = `i${uidCounter++}`
-    const [fc, fr] = findFreeCell(tc, tr, gw, gh, newUid)
-    const [wx, wz] = footprintCenter(fc, fr, gw, gh)
-    occupyCells(newUid, fc, fr, gw, gh)
+    const [fc, fr] = findFreeCell(tc, tr, 1, 1, newUid)
+    const [wx, wz] = footprintCenter(fc, fr, 1, 1)
+    occupyCells(newUid, fc, fr, 1, 1)
     setItems(prev => [...prev, {
-      uid: newUid, url: cat.url, height: cat.height,
-      gridW: gw, gridH: gh, position: [wx, 0, wz],
+      uid: newUid, url: cat.url, height: cat.height, position: [wx, 0, wz],
     }])
   }, [findFreeCell, occupyCells])
 
@@ -325,8 +322,8 @@ export default function SandPage() {
                 uid={item.uid}
                 textureUrl={item.url}
                 height={item.height}
-                gridW={item.gridW}
-                gridH={item.gridH}
+                gridW={1}
+                gridH={1}
                 initialPosition={item.position}
                 freeCells={freeCells}
                 occupyCells={occupyCells}
