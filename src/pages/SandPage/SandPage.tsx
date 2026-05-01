@@ -151,6 +151,7 @@ export default function SandPage() {
                 textureUrl={item.url}
                 height={item.height}
                 initialPosition={item.position}
+                onRemove={() => setItems(prev => prev.filter(i => i.uid !== item.uid))}
               />
             </Suspense>
           ))}

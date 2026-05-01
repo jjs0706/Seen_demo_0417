@@ -8,6 +8,7 @@ interface SandSpriteProps {
   textureUrl: string
   height?: number
   initialPosition?: [number, number, number]
+  onRemove?: () => void
 }
 
 const GROUND_Y = 0.01
@@ -24,6 +25,7 @@ export default function SandSprite({
   textureUrl,
   height = 1.0,
   initialPosition = [0, 0, 0],
+  onRemove,
 }: SandSpriteProps) {
   const texture = useTexture(textureUrl)
   const groupRef = useRef<THREE.Group>(null)
@@ -100,8 +102,9 @@ export default function SandSprite({
     if (!dragging || !groupRef.current) return
     e.stopPropagation()
     if (e.ray.intersectPlane(dragPlane, hitPoint)) {
-      groupRef.current.position.x = clamp(hitPoint.x + dragOffset.current.x, BOUNDS.minX, BOUNDS.maxX)
-      groupRef.current.position.z = clamp(hitPoint.z + dragOffset.current.z, BOUNDS.minZ, BOUNDS.maxZ)
+      // 拖拽时不 clamp，允许移出底座
+      groupRef.current.position.x = hitPoint.x + dragOffset.current.x
+      groupRef.current.position.z = hitPoint.z + dragOffset.current.z
     }
   }, [dragging])
 
@@ -110,7 +113,13 @@ export default function SandSprite({
     e.stopPropagation()
     if (orbitRef.current) orbitRef.current.enabled = true
     setDragging(false)
-  }, [dragging, orbitRef])
+    // 松手时检查是否在底座外，若在外则删除
+    if (groupRef.current) {
+      const { x, z } = groupRef.current.position
+      const outside = x < BOUNDS.minX || x > BOUNDS.maxX || z < BOUNDS.minZ || z > BOUNDS.maxZ
+      if (outside) onRemove?.()
+    }
+  }, [dragging, orbitRef, onRemove])
 
   return (
     <group
