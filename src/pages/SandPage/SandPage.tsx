@@ -1,7 +1,8 @@
 import { useState, Suspense, useRef, createContext } from 'react'
-import { Canvas } from '@react-three/fiber'
+import { Canvas, useThree, useFrame } from '@react-three/fiber'
 import { OrbitControls, useTexture } from '@react-three/drei'
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib'
+import type { ThreeEvent } from '@react-three/fiber'
 import * as THREE from 'three'
 import { useNavigate } from 'react-router-dom'
 import SandSprite from './SandSprite'
@@ -17,6 +18,67 @@ const ALL_URLS = [
   '/sandbox/cat.png','/sandbox/bird.png',
 ]
 ALL_URLS.forEach(u => useTexture.preload(u))
+
+// ── 自定义平移平面（只在放大时生效，只允许左右）─────────────
+const ZOOM_THRESHOLD = 6.5   // 相机距离小于此值视为"放大状态"
+const PAN_LIMIT = 1.2        // 左右平移上限（单位）
+
+function PanPlane({ orbitRef }: { orbitRef: React.RefObject<OrbitControlsImpl | null> }) {
+  const { camera } = useThree()
+  const dragging = useRef(false)
+  const lastX = useRef(0)
+
+  const isZoomedIn = () => camera.position.length() < ZOOM_THRESHOLD
+
+  const onPointerDown = (e: ThreeEvent<PointerEvent>) => {
+    if (!isZoomedIn()) return
+    e.stopPropagation()
+    dragging.current = true
+    lastX.current = e.point.x
+    if (orbitRef.current) orbitRef.current.enabled = false
+  }
+
+  const onPointerMove = (e: ThreeEvent<PointerEvent>) => {
+    if (!dragging.current || !orbitRef.current) return
+    const dx = e.point.x - lastX.current
+    lastX.current = e.point.x
+    const ctrl = orbitRef.current
+    ctrl.target.x = Math.max(-PAN_LIMIT, Math.min(PAN_LIMIT, ctrl.target.x - dx))
+    ctrl.update()
+  }
+
+  const onPointerUp = () => {
+    dragging.current = false
+    if (orbitRef.current) orbitRef.current.enabled = true
+  }
+
+  // 每帧保证 target Y/Z 不漂移
+  useFrame(() => {
+    const ctrl = orbitRef.current
+    if (!ctrl) return
+    ctrl.target.y = 0
+    ctrl.target.z = 0
+    // 缩回正常视距时，平滑归位
+    if (!isZoomedIn()) {
+      ctrl.target.x += (0 - ctrl.target.x) * 0.1
+      ctrl.update()
+    }
+  })
+
+  return (
+    <mesh
+      rotation={[-Math.PI / 2, 0, 0]}
+      position={[0, -0.01, 0]}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
+      onPointerLeave={onPointerUp}
+    >
+      <planeGeometry args={[30, 30]} />
+      <meshBasicMaterial transparent opacity={0} depthWrite={false} />
+    </mesh>
+  )
+}
 
 // ── 底座 ──────────────────────────────────────────────────────
 function Base() {
@@ -132,27 +194,20 @@ export default function SandPage() {
         <ambientLight intensity={1.8} />
         <directionalLight position={[5, 8, 5]} intensity={0.5} />
 
+        {/* 只开缩放，pan 完全交给 PanPlane 自己管 */}
         <OrbitControls
           ref={orbitRef}
           enableRotate={false}
-          enablePan={true}
-          panSpeed={0.8}
-          screenSpacePanning={true}
+          enablePan={false}
           enableZoom={true}
           minDistance={3}
-          maxDistance={14}
+          maxDistance={12}
           zoomSpeed={1.2}
-          target={[0, 0, 0]}
-          mouseButtons={{ LEFT: THREE.MOUSE.PAN, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.PAN }}
-          touches={{ ONE: THREE.TOUCH.PAN, TWO: THREE.TOUCH.DOLLY_PAN }}
-          onChange={() => {
-            const ctrl = orbitRef.current
-            if (!ctrl) return
-            ctrl.target.y = 0
-            ctrl.target.z = 0
-            ctrl.target.x = Math.max(-1, Math.min(1, ctrl.target.x))
-          }}
+          touches={{ ONE: THREE.TOUCH.DOLLY_PAN, TWO: THREE.TOUCH.DOLLY_PAN }}
         />
+
+        {/* 自定义平移平面（放大后才能左右拖） */}
+        <PanPlane orbitRef={orbitRef} />
 
         {/* 底座单独 Suspense，不受元素加载影响 */}
         <Suspense fallback={null}>
