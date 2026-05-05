@@ -14,7 +14,7 @@ const MODULES = [
 ]
 
 const DEEP_MODULES = [
-  { icon: '⛰️', title: '沙盘创作', subtitle: '心理投射',   to: '/sandbox', locked: false },
+  { icon: '⛰️', title: '沙盘创作', subtitle: '心理投射',   to: '/sand', locked: false },
   { icon: '🌙', title: '梦境分析', subtitle: '潜意识探索', to: '/healing/dream', locked: false },
 ]
 

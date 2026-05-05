@@ -22,7 +22,8 @@ const GROUND_Y = 0.01
 const dragPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0)
 
 function isOutOfBounds(x: number, z: number) {
-  const margin = CELL * 2
+  // 给一点点正容差，避免边缘精度抖动，但稍微超出就删
+  const margin = CELL * 0.5
   return (
     x < OX - margin || x > OX + COLS * CELL + margin ||
     z < OZ - margin || z > OZ + ROWS * CELL + margin
