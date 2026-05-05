@@ -37,9 +37,21 @@ export default function DreamPage() {
   const [stage, setStage] = useState<Stage>('write')
   const [dreamText, setDreamText] = useState('')
   const [analysis, setAnalysis] = useState('')
-  const [imageUrl, setImageUrl] = useState('')
+  const [imageUrl, setImageUrl] = useState('')   // base64，永久可用
   const [imageLoaded, setImageLoaded] = useState(false)
   const [saved, setSaved] = useState(false)
+
+  // 将远程 URL 转成 base64，避免临时链接失效
+  const toBase64 = async (url: string): Promise<string> => {
+    const res = await fetch(url)
+    const blob = await res.blob()
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onloadend = () => resolve(reader.result as string)
+      reader.onerror = reject
+      reader.readAsDataURL(blob)
+    })
+  }
 
   const handleAnalyze = async () => {
     if (!dreamText.trim()) return
@@ -48,7 +60,7 @@ export default function DreamPage() {
     setSaved(false)
 
     try {
-      // Step 1: DeepSeek 分析梦境，生成图像描述
+      // Step 1: AI 分析梦境，生成图像描述
       const res = await chat([
         { role: 'system', content: ANALYSIS_PROMPT },
         { role: 'user', content: `我的梦境：${dreamText}` },
@@ -56,10 +68,11 @@ export default function DreamPage() {
       const { analysis: analysisText, prompt } = extractImagePrompt(res)
       setAnalysis(analysisText)
 
-      // Step 2: Gemini Imagen 生成图画
+      // Step 2: 豆包 Seedream 生成图画，立即转 base64 永久保存
       const imagePrompt = prompt + ', oil painting, soft warm colors, dreamy, impressionist style'
-      const url = await generateImage(imagePrompt)
-      setImageUrl(url)
+      const tempUrl = await generateImage(imagePrompt)
+      const base64 = await toBase64(tempUrl)
+      setImageUrl(base64)
     } catch (e) {
       console.error(e)
       setAnalysis('梦境是内心深处的诗，即使无法完全解读，它也在用意象轻轻诉说着什么。')
@@ -69,7 +82,7 @@ export default function DreamPage() {
   }
 
   const handleSave = () => {
-    if (saved) return
+    if (saved || !imageUrl) return
     addPainting({ imageUrl, dreamText, analysis })
     setSaved(true)
   }
@@ -193,11 +206,11 @@ export default function DreamPage() {
           <div style={{ display: 'flex', gap: 10 }}>
             <button
               onClick={handleSave}
-              disabled={saved || !imageLoaded}
+              disabled={saved || !imageUrl}
               style={{
                 ...primaryBtnStyle,
                 flex: 1,
-                opacity: saved || !imageLoaded ? 0.5 : 1,
+                opacity: saved || !imageUrl ? 0.5 : 1,
               }}
             >
               {saved ? '✓ 已挂到小屋' : '🖼 挂到小屋'}
