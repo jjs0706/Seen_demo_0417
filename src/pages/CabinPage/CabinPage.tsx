@@ -128,33 +128,36 @@ export default function CabinPage() {
       {/* 挂画墙 */}
       <PaintingWall />
 
-      {/* 小屋 3D 场景入口 */}
+      {/* 小屋背景图 */}
       <div
         onClick={() => navigate('/cabin/stage')}
         style={{
           margin: '8px 16px',
-          background: 'linear-gradient(135deg, #0d2b0d 0%, #1a3d1a 100%)',
           borderRadius: 'var(--radius-lg)',
-          padding: '24px 16px',
+          overflow: 'hidden',
           boxShadow: 'var(--shadow-card)',
-          textAlign: 'center',
           cursor: 'pointer',
           position: 'relative',
-          overflow: 'hidden',
+          aspectRatio: '16/9',
         }}
       >
-        <div style={{ fontSize: '36px', marginBottom: '8px' }}>🌸</div>
-        <p style={{ fontSize: '15px', color: 'rgba(200,240,200,0.9)', fontWeight: 500 }}>
-          进入我的小屋
-        </p>
-        <p style={{ fontSize: '12px', color: 'rgba(200,240,200,0.5)', marginTop: '4px' }}>
-          花海 · 春风 · 静谧空间
-        </p>
+        <img
+          src="/cabin-bg.png"
+          alt="我的小屋"
+          style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+        />
         <div style={{
-          position: 'absolute', right: '16px', top: '50%',
-          transform: 'translateY(-50%)',
-          fontSize: '18px', color: 'rgba(200,240,200,0.4)',
-        }}>→</div>
+          position: 'absolute', inset: 0,
+          background: 'linear-gradient(to top, rgba(0,0,0,0.35) 0%, transparent 50%)',
+          display: 'flex', alignItems: 'flex-end',
+          padding: '14px 16px',
+        }}>
+          <div>
+            <p style={{ fontSize: 15, color: '#fff', fontWeight: 500, margin: 0 }}>进入我的小屋</p>
+            <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)', margin: '2px 0 0' }}>花海 · 春风 · 静谧空间</p>
+          </div>
+          <span style={{ marginLeft: 'auto', fontSize: 18, color: 'rgba(255,255,255,0.7)' }}>→</span>
+        </div>
       </div>
 
       {/* 快捷入口 */}
