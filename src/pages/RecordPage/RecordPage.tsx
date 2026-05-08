@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useAppStore } from '../../store/appStore'
+import EmotionWheel, { type WheelValue } from './EmotionWheel'
 
 // 情绪分数 → 表情 + 文字
 const SCORE_DISPLAY: Record<number, { emoji: string; label: string }> = {
@@ -39,14 +40,19 @@ export default function RecordPage() {
   const navigate = useNavigate()
   const addRecord = useAppStore(s => s.addRecord)
 
+  const [mode, setMode] = useState<'slider' | 'wheel'>('slider')
   const [score, setScore] = useState(5)
+  const [wheelVal, setWheelVal] = useState<WheelValue>({ x: 0.5, y: 0, emotion: '愉悦' })
   const [activeCat, setActiveCat] = useState('工作')
   const [selectedTags, setSelectedTags] = useState<string[]>([])
   const [description, setDescription] = useState('')
   const [saved, setSaved] = useState(false)
 
-  const currentColor = scoreToHsl(score)
-  const { emoji, label } = SCORE_DISPLAY[score]
+  // 圆盘模式下将愉悦度映射到 1-10 分数
+  const wheelScore = Math.round((wheelVal.x + 1) / 2 * 9) + 1
+  const activeScore = mode === 'slider' ? score : Math.max(1, Math.min(10, wheelScore))
+  const currentColor = scoreToHsl(activeScore)
+  const { emoji, label } = SCORE_DISPLAY[activeScore]
 
   const toggleTag = (tag: string) => {
     setSelectedTags(prev =>
@@ -55,7 +61,11 @@ export default function RecordPage() {
   }
 
   const handleSave = () => {
-    addRecord({ score, tags: selectedTags, description })
+    const finalScore = mode === 'slider' ? score : activeScore
+    const finalTags = mode === 'wheel'
+      ? [...new Set([wheelVal.emotion, ...selectedTags])]
+      : selectedTags
+    addRecord({ score: finalScore, tags: finalTags, description })
     setSaved(true)
     setTimeout(() => navigate('/'), 800)
   }
@@ -88,7 +98,7 @@ export default function RecordPage() {
         </h2>
       </div>
 
-      {/* 情绪分数卡片 */}
+      {/* 情绪卡片 */}
       <div style={{
         margin: '8px 16px',
         background: 'var(--color-card)',
@@ -96,70 +106,63 @@ export default function RecordPage() {
         padding: '20px',
         boxShadow: 'var(--shadow-card)',
       }}>
-        {/* 表情 + 分数 + 状态 */}
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          gap: '10px',
-          marginBottom: '16px',
-        }}>
-          <motion.span
-            key={emoji}
-            initial={{ scale: 0.6, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            transition={{ duration: 0.2 }}
-            style={{ fontSize: '32px' }}
-          >
-            {emoji}
-          </motion.span>
-          <motion.span
-            key={score}
-            initial={{ y: -4, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            transition={{ duration: 0.15 }}
+        {/* 标题行 + 模式切换 */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <motion.span key={emoji} initial={{ scale: 0.6 }} animate={{ scale: 1 }} style={{ fontSize: 28 }}>
+              {emoji}
+            </motion.span>
+            <motion.span key={activeScore} initial={{ y: -4, opacity: 0 }} animate={{ y: 0, opacity: 1 }}
+              style={{ fontSize: 24, fontWeight: 600, color: currentColor }}>
+              {activeScore}
+            </motion.span>
+            <span style={{ fontSize: 13, color: 'var(--color-text-sub)' }}>{label}</span>
+          </div>
+          {/* 模式切换按钮 */}
+          <button
+            onClick={() => setMode(m => m === 'slider' ? 'wheel' : 'slider')}
             style={{
-              fontSize: '28px',
-              fontWeight: 600,
-              color: currentColor,
+              padding: '4px 10px',
+              borderRadius: 20,
+              border: '1px solid rgba(0,0,0,0.1)',
+              fontSize: 11,
+              cursor: 'pointer',
+              background: mode === 'wheel' ? 'var(--color-primary)' : 'rgba(0,0,0,0.04)',
+              color: mode === 'wheel' ? 'white' : 'var(--color-text-sub)',
+              transition: 'all 0.2s',
             }}
           >
-            {score}
-          </motion.span>
-          <span style={{ fontSize: '14px', color: 'var(--color-text-sub)' }}>
-            {label}
-          </span>
+            {mode === 'slider' ? '⭕ 情绪环' : '— 滑块'}
+          </button>
         </div>
 
-        {/* 滑块 */}
-        <input
-          type="range"
-          min={1}
-          max={10}
-          value={score}
-          onChange={e => setScore(Number(e.target.value))}
-          style={{
-            width: '100%',
-            height: '4px',
-            borderRadius: '999px',
-            outline: 'none',
-            cursor: 'pointer',
-            // 用 CSS 变量实现渐变色轨道
-            background: `linear-gradient(to right, ${currentColor} ${(score - 1) / 9 * 100}%, rgba(0,0,0,0.1) ${(score - 1) / 9 * 100}%)`,
-            WebkitAppearance: 'none',
-            appearance: 'none',
-          }}
-        />
-        <div style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          marginTop: '6px',
-          fontSize: '11px',
-          color: 'var(--color-text-sub)',
-        }}>
-          <span>低落</span>
-          <span>很棒</span>
-        </div>
+        <AnimatePresence mode="wait">
+          {mode === 'slider' ? (
+            <motion.div key="slider"
+              initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }}
+              transition={{ duration: 0.2 }}>
+              <input
+                type="range" min={1} max={10} value={score}
+                onChange={e => setScore(Number(e.target.value))}
+                style={{
+                  width: '100%', height: '4px', borderRadius: '999px',
+                  outline: 'none', cursor: 'pointer',
+                  background: `linear-gradient(to right, ${currentColor} ${(score - 1) / 9 * 100}%, rgba(0,0,0,0.1) ${(score - 1) / 9 * 100}%)`,
+                  WebkitAppearance: 'none', appearance: 'none',
+                }}
+              />
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6, fontSize: 11, color: 'var(--color-text-sub)' }}>
+                <span>低落</span><span>很棒</span>
+              </div>
+            </motion.div>
+          ) : (
+            <motion.div key="wheel"
+              initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }}
+              transition={{ duration: 0.2 }}>
+              <EmotionWheel value={wheelVal} onChange={setWheelVal} />
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
 
       {/* 标签选择卡片 */}
