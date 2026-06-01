@@ -164,6 +164,7 @@ export default function CabinPage() {
       <div style={{ margin: '8px 16px', display: 'flex', gap: 10 }}>
         {[
           { icon: '⛰️', label: '沙盘创作', to: '/sand' },
+          { icon: '🏠', label: '装饰小屋', to: '/cabin/deco' },
           { icon: '🌙', label: '梦境分析', to: '/healing/dream' },
         ].map(item => (
           <div

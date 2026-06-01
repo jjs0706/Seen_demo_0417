@@ -13,6 +13,7 @@ import BreathePage from './pages/HealingPages/BreathePage'
 import DriftBottlePage from './pages/HealingPages/DriftBottlePage'
 import LighthousePage from './pages/HealingPages/LighthousePage'
 import DreamPage from './pages/HealingPages/DreamPage'
+import CabinDecoPage from './pages/CabinPage/CabinDecoPage'
 
 
 export default function App() {
@@ -35,6 +36,9 @@ export default function App() {
 
           {/* 小屋花海场景（R3F）*/}
           <Route path="cabin/stage" element={<CottageStage />} />
+
+          {/* 小屋装饰沙盘 */}
+          <Route path="cabin/deco" element={<CabinDecoPage />} />
 
           {/* 🔌 交互沙盘（独立设计，后续接入小屋/疗愈）*/}
           <Route path="sand" element={<SandPage />} />
