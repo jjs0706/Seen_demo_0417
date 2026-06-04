@@ -1,4 +1,4 @@
-import { useState, Suspense, useRef, createContext, useCallback, useEffect } from 'react'
+import { useState, Suspense, useRef, createContext, useContext, useCallback, useEffect } from 'react'
 import { Canvas, useThree, useFrame } from '@react-three/fiber'
 import { OrbitControls, useTexture } from '@react-three/drei'
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib'
@@ -23,7 +23,7 @@ function worldToTopLeft(wx: number, wz: number): [number, number] {
   ]
 }
 function isOutOfBounds(x: number, z: number) {
-  const m = CELL * 0.5
+  const m = CELL * 2.5
   return x < OX - m || x > OX + COLS * CELL + m || z < OZ - m || z > OZ + ROWS * CELL + m
 }
 
@@ -123,6 +123,8 @@ function FurnitureSprite({
   const [dragging, setDragging] = useState(false)
   const orbitRef = useContext(CabinOrbitCtx)
   const dragOffset = useRef(new THREE.Vector3())
+  const dragTarget = useRef(new THREE.Vector3())
+  const isDraggingRef = useRef(false)
   const alphaCanvas = useRef<HTMLCanvasElement | null>(null)
   const alphaCtx2d = useRef<CanvasRenderingContext2D | null>(null)
 
@@ -150,14 +152,15 @@ function FurnitureSprite({
     return d[3] < 30
   }, [])
 
-  const screenToGround = useCallback((cx: number, cy: number) => {
+  const screenToPlane = useCallback((cx: number, cy: number, planeY: number) => {
     const rect = gl.domElement.getBoundingClientRect()
     const ndx = ((cx - rect.left) / rect.width) * 2 - 1
     const ndy = -((cy - rect.top) / rect.height) * 2 + 1
     const ray = new THREE.Raycaster()
     ray.setFromCamera(new THREE.Vector2(ndx, ndy), camera)
+    const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -planeY)
     const pt = new THREE.Vector3()
-    return ray.ray.intersectPlane(dragPlane, pt) ? pt : null
+    return ray.ray.intersectPlane(plane, pt) ? pt : null
   }, [camera, gl])
 
   useFrame(({ camera: cam }) => {
@@ -166,7 +169,11 @@ function FurnitureSprite({
       cam.position.x - groupRef.current.position.x,
       cam.position.z - groupRef.current.position.z
     )
-    const ty = dragging ? centerY + 0.12 : centerY
+    if (isDraggingRef.current) {
+      groupRef.current.position.x += (dragTarget.current.x - groupRef.current.position.x) * 0.30
+      groupRef.current.position.z += (dragTarget.current.z - groupRef.current.position.z) * 0.30
+    }
+    const ty = isDraggingRef.current ? centerY + 0.12 : centerY
     groupRef.current.position.y += (ty - groupRef.current.position.y) * 0.18
   })
 
@@ -174,39 +181,43 @@ function FurnitureSprite({
     if (e.uv && isTransparent(e.uv)) return
     e.stopPropagation()
     if (!groupRef.current) return
-    const pt = screenToGround(e.nativeEvent.clientX, e.nativeEvent.clientY)
+    const pt = screenToPlane(e.nativeEvent.clientX, e.nativeEvent.clientY, centerY)
     if (pt) dragOffset.current.set(groupRef.current.position.x - pt.x, 0, groupRef.current.position.z - pt.z)
+    dragTarget.current.set(groupRef.current.position.x, 0, groupRef.current.position.z)
     freeCells(uid)
     if (orbitRef.current) orbitRef.current.enabled = false
+    isDraggingRef.current = true
     setDragging(true)
 
     const onMove = (ev: PointerEvent) => {
-      if (!groupRef.current) return
-      const hit = screenToGround(ev.clientX, ev.clientY)
+      const hit = screenToPlane(ev.clientX, ev.clientY, centerY)
       if (hit) {
-        groupRef.current.position.x = hit.x + dragOffset.current.x
-        groupRef.current.position.z = hit.z + dragOffset.current.z
+        dragTarget.current.x = hit.x + dragOffset.current.x
+        dragTarget.current.z = hit.z + dragOffset.current.z
       }
     }
     const onUp = (ev: PointerEvent) => {
       window.removeEventListener('pointermove', onMove)
       window.removeEventListener('pointerup', onUp)
       if (orbitRef.current) orbitRef.current.enabled = true
+      isDraggingRef.current = false
       setDragging(false)
       if (!groupRef.current) return
-      const { x, z } = groupRef.current.position
+      const x = dragTarget.current.x
+      const z = dragTarget.current.z
       const rect = gl.domElement.getBoundingClientRect()
-      const outside = ev.clientX < rect.left || ev.clientX > rect.right || ev.clientY < rect.top || ev.clientY > rect.bottom
+      const outside = ev.clientX < rect.left - 40 || ev.clientX > rect.right + 40 || ev.clientY < rect.top - 40 || ev.clientY > rect.bottom + 40
       if (outside || isOutOfBounds(x, z)) { onRemove?.(); return }
       const [tc, tr] = worldToTopLeft(x, z)
       const [fc, fr] = findFreeCell(tc, tr, uid)
       const [cx2, cz2] = footprintCenter(fc, fr)
       groupRef.current.position.x = cx2; groupRef.current.position.z = cz2
+      dragTarget.current.set(cx2, 0, cz2)
       occupyCells(uid, fc, fr)
     }
     window.addEventListener('pointermove', onMove)
     window.addEventListener('pointerup', onUp)
-  }, [isTransparent, screenToGround, freeCells, uid, orbitRef, gl, findFreeCell, occupyCells, onRemove])
+  }, [isTransparent, screenToPlane, centerY, freeCells, uid, orbitRef, gl, findFreeCell, occupyCells, onRemove])
 
   return (
     <group ref={groupRef} position={[initialPosition[0], centerY, initialPosition[2]]} onPointerDown={onPointerDown}>
