@@ -146,6 +146,10 @@ export default function SandSprite({
       if (hit) {
         dragTarget.current.x = hit.x + dragOffset.current.x
         dragTarget.current.z = hit.z + dragOffset.current.z
+      } else {
+        // 射线打不到水平面（指针在"天空"区域）→ 直接标记为越界
+        dragTarget.current.x = OX - 99
+        dragTarget.current.z = OZ - 99
       }
     }
 
