@@ -47,7 +47,7 @@ const PAN_LIMIT = 1.8
 function PanPlane({ orbitRef }: { orbitRef: React.RefObject<OrbitControlsImpl | null> }) {
   const { camera } = useThree()
   const dragging = useRef(false)
-  const lastClientX = useRef(0)
+  const lastClient = useRef({ x: 0, y: 0 })
 
   const isZoomedIn = () => camera.position.distanceTo(
     orbitRef.current ? orbitRef.current.target : new THREE.Vector3()
@@ -57,23 +57,33 @@ function PanPlane({ orbitRef }: { orbitRef: React.RefObject<OrbitControlsImpl | 
     if (!isZoomedIn()) return
     e.stopPropagation()
     dragging.current = true
-    lastClientX.current = e.nativeEvent.clientX
+    lastClient.current = { x: e.nativeEvent.clientX, y: e.nativeEvent.clientY }
     if (orbitRef.current) orbitRef.current.enabled = false
   }
 
   const onPointerMove = (e: ThreeEvent<PointerEvent>) => {
     if (!dragging.current || !orbitRef.current) return
     const ctrl = orbitRef.current
-    const clientDx = e.nativeEvent.clientX - lastClientX.current
-    lastClientX.current = e.nativeEvent.clientX
+    const clientDx = e.nativeEvent.clientX - lastClient.current.x
+    const clientDy = e.nativeEvent.clientY - lastClient.current.y
+    lastClient.current = { x: e.nativeEvent.clientX, y: e.nativeEvent.clientY }
+
     const dist = camera.position.distanceTo(ctrl.target)
     const fovRad = (camera as THREE.PerspectiveCamera).fov * (Math.PI / 180)
     const worldPerPixel = (2 * Math.tan(fovRad / 2) * dist) / window.innerHeight
-    const dx = clientDx * worldPerPixel
-    const newX = Math.max(-PAN_LIMIT, Math.min(PAN_LIMIT, ctrl.target.x - dx))
+
+    // X 轴平移
+    const newX = Math.max(-PAN_LIMIT, Math.min(PAN_LIMIT, ctrl.target.x - clientDx * worldPerPixel))
     const actualDx = newX - ctrl.target.x
     ctrl.target.x += actualDx
     ctrl.object.position.x += actualDx
+
+    // Z 轴平移（屏幕向下 → 世界 +Z）
+    const newZ = Math.max(-PAN_LIMIT, Math.min(PAN_LIMIT, ctrl.target.z + clientDy * worldPerPixel))
+    const actualDz = newZ - ctrl.target.z
+    ctrl.target.z += actualDz
+    ctrl.object.position.z += actualDz
+
     ctrl.update()
   }
 
@@ -86,11 +96,11 @@ function PanPlane({ orbitRef }: { orbitRef: React.RefObject<OrbitControlsImpl | 
     const ctrl = orbitRef.current
     if (!ctrl) return
     ctrl.target.y = 0
-    ctrl.target.z = 0
     if (!isZoomedIn()) {
-      const snap = (0 - ctrl.target.x) * 0.1
-      ctrl.target.x += snap
-      ctrl.object.position.x += snap
+      // 缩小后归位
+      ctrl.target.x += (0 - ctrl.target.x) * 0.1
+      ctrl.target.z += (0 - ctrl.target.z) * 0.1
+      ctrl.object.position.x += (0 - ctrl.object.position.x) * 0.1  // 近似归位
       ctrl.update()
     }
   })

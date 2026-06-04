@@ -21,7 +21,7 @@ interface SandSpriteProps {
 const GROUND_Y = 0.01
 
 function isOutOfBounds(x: number, z: number) {
-  const margin = CELL * 2.5
+  const margin = CELL * 0.3   // 紧贴底座边缘，只留极小容差
   return (
     x < OX - margin || x > OX + COLS * CELL + margin ||
     z < OZ - margin || z > OZ + ROWS * CELL + margin
@@ -94,10 +94,11 @@ export default function SandSprite({
     return ray.ray.intersectPlane(plane, pt) ? pt : null
   }, [camera, gl])
 
-  // ── 方案 A：固定朝向相机初始方向，不随视角旋转 ──
+  // 格子高亮 mesh ref
+  const cellHighlightRef = useRef<THREE.Mesh>(null)
+
   useFrame(() => {
     if (!groupRef.current) return
-    // 固定朝向 +Z（相机从 [0,6,6] 看过来的方向），不再随 pan 旋转
     groupRef.current.rotation.y = 0
 
     if (isDraggingRef.current) {
@@ -106,6 +107,18 @@ export default function SandSprite({
     }
     const ty = isDraggingRef.current ? centerY + 0.14 : centerY
     groupRef.current.position.y += (ty - groupRef.current.position.y) * 0.18
+
+    // 格子高亮：跟随 dragTarget snap 到最近格子
+    if (cellHighlightRef.current) {
+      if (isDraggingRef.current && !isOutOfBounds(dragTarget.current.x, dragTarget.current.z)) {
+        const [tc, tr] = worldToTopLeft(dragTarget.current.x, dragTarget.current.z, gridW, gridH)
+        const [cx, cz] = footprintCenter(tc, tr, gridW, gridH)
+        cellHighlightRef.current.position.set(cx, 0.005, cz)
+        cellHighlightRef.current.visible = true
+      } else {
+        cellHighlightRef.current.visible = false
+      }
+    }
   })
 
   const onPointerDown = useCallback((e: ThreeEvent<PointerEvent>) => {
@@ -171,21 +184,33 @@ export default function SandSprite({
   }, [isTransparent, screenToPlane, centerY, freeCells, uid, orbitRef, gl, gridW, gridH, findFreeCell, occupyCells, onRemove])
 
   return (
-    <group
-      ref={groupRef}
-      position={[initialPosition[0], centerY, initialPosition[2]]}
-      onPointerDown={onPointerDown}
-    >
-      <mesh>
-        <planeGeometry args={[w, height]} />
-        <meshBasicMaterial
-          map={texture}
-          transparent
-          alphaTest={0.05}
-          side={THREE.DoubleSide}
-          depthWrite={false}
-        />
+    <>
+      {/* 格子高亮（拖动时显示落点） */}
+      <mesh
+        ref={cellHighlightRef}
+        rotation={[-Math.PI / 2, 0, 0]}
+        visible={false}
+      >
+        <planeGeometry args={[CELL * 0.88, CELL * 0.88]} />
+        <meshBasicMaterial color="#4caf50" transparent opacity={0.45} depthWrite={false} />
       </mesh>
-    </group>
+
+      <group
+        ref={groupRef}
+        position={[initialPosition[0], centerY, initialPosition[2]]}
+        onPointerDown={onPointerDown}
+      >
+        <mesh>
+          <planeGeometry args={[w, height]} />
+          <meshBasicMaterial
+            map={texture}
+            transparent
+            alphaTest={0.05}
+            side={THREE.DoubleSide}
+            depthWrite={false}
+          />
+        </mesh>
+      </group>
+    </>
   )
 }
