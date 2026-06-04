@@ -2,8 +2,8 @@ import { useRef, useState, useCallback, useContext, useEffect } from 'react'
 import { useFrame, useThree, type ThreeEvent } from '@react-three/fiber'
 import { useTexture } from '@react-three/drei'
 import * as THREE from 'three'
-import { OrbitCtx } from './SandPage'
-import { CELL, COLS, ROWS, OX, OZ, footprintCenter, worldToTopLeft } from './gridConfig'
+import { OrbitCtx, HitPlaneCtx } from './SandPage'
+import { CELL, footprintCenter, worldToTopLeft } from './gridConfig'
 
 interface SandSpriteProps {
   uid: string
@@ -19,14 +19,7 @@ interface SandSpriteProps {
 }
 
 const GROUND_Y = 0.01
-
-function isOutOfBounds(x: number, z: number) {
-  const margin = CELL * 0.3   // 紧贴底座边缘，只留极小容差
-  return (
-    x < OX - margin || x > OX + COLS * CELL + margin ||
-    z < OZ - margin || z > OZ + ROWS * CELL + margin
-  )
-}
+// 删除判断改用底座 mesh raycast（null = 范围外），不再需要 isOutOfBounds
 
 export default function SandSprite({
   uid,
@@ -44,7 +37,8 @@ export default function SandSprite({
   const { camera, gl } = useThree()
   const groupRef = useRef<THREE.Group>(null)
   const [dragging, setDragging] = useState(false)
-  const orbitRef = useContext(OrbitCtx)
+  const orbitRef    = useContext(OrbitCtx)
+  const hitPlaneRef = useContext(HitPlaneCtx)
   const dragOffset = useRef(new THREE.Vector3())
   const dragTarget = useRef(new THREE.Vector3())
   const isDraggingRef = useRef(false)
@@ -83,17 +77,18 @@ export default function SandSprite({
     return data[3] < 30
   }, [])
 
-  // 始终与 y=0 地面平面求交，保证坐标和视觉网格对齐
+  // 与底座碰撞平面求交：只有指针在底座上才返回坐标，否则返回 null（= 底座外）
   const screenToGround = useCallback((clientX: number, clientY: number): THREE.Vector3 | null => {
+    const mesh = hitPlaneRef.current
+    if (!mesh) return null
     const rect = gl.domElement.getBoundingClientRect()
     const ndx = ((clientX - rect.left) / rect.width) * 2 - 1
     const ndy = -((clientY - rect.top) / rect.height) * 2 + 1
     const ray = new THREE.Raycaster()
     ray.setFromCamera(new THREE.Vector2(ndx, ndy), camera)
-    const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0)
-    const pt = new THREE.Vector3()
-    return ray.ray.intersectPlane(plane, pt) ? pt : null
-  }, [camera, gl])
+    const hits = ray.intersectObject(mesh)
+    return hits.length > 0 ? hits[0].point : null
+  }, [camera, gl, hitPlaneRef])
 
   // 格子高亮 mesh ref
   const cellHighlightRef = useRef<THREE.Mesh>(null)
@@ -147,11 +142,8 @@ export default function SandSprite({
       if (hit) {
         dragTarget.current.x = hit.x + dragOffset.current.x
         dragTarget.current.z = hit.z + dragOffset.current.z
-      } else {
-        // 射线打不到地面（指针在"天空"区域）→ 标记为越界
-        dragTarget.current.x = OX - 99
-        dragTarget.current.z = OZ - 99
       }
+      // hit 为 null 时（底座外）保持 dragTarget 不变；松手时用最终 raycast 决定
     }
 
     const onWindowUp = (ev: PointerEvent) => {
@@ -162,20 +154,15 @@ export default function SandSprite({
       setDragging(false)
 
       if (!groupRef.current) return
-      const x = dragTarget.current.x
-      const z = dragTarget.current.z
 
-      const rect = gl.domElement.getBoundingClientRect()
-      const outsideScreen = (
-        ev.clientX < rect.left - 40 || ev.clientX > rect.right + 40 ||
-        ev.clientY < rect.top - 40  || ev.clientY > rect.bottom + 40
-      )
-      if (outsideScreen || isOutOfBounds(x, z)) {
+      // 松手时直接对底座 mesh 做一次 raycast：命中 = 放置，未命中 = 删除
+      const finalHit = screenToGround(ev.clientX, ev.clientY)
+      if (!finalHit) {
         onRemove?.()
         return
       }
 
-      const [tc, tr] = worldToTopLeft(x, z, gridW, gridH)
+      const [tc, tr] = worldToTopLeft(finalHit.x, finalHit.z, gridW, gridH)
       const [fc, fr] = findFreeCell(tc, tr, gridW, gridH, uid)
       const [cx, cz] = footprintCenter(fc, fr, gridW, gridH)
       groupRef.current.position.x = cx

@@ -8,7 +8,8 @@ import { useNavigate } from 'react-router-dom'
 import SandSprite from './SandSprite'
 import { CELL, COLS, ROWS, OX, OZ, footprintCenter, worldToTopLeft } from './gridConfig'
 
-export const OrbitCtx = createContext<React.RefObject<OrbitControlsImpl | null>>({ current: null })
+export const OrbitCtx    = createContext<React.RefObject<OrbitControlsImpl | null>>({ current: null })
+export const HitPlaneCtx = createContext<React.RefObject<THREE.Mesh | null>>({ current: null })
 
 const ALL_URLS = [
   '/sandbox/base.png',
@@ -19,17 +20,25 @@ const ALL_URLS = [
 ALL_URLS.forEach(u => useTexture.preload(u))
 
 // ── 底座 ──────────────────────────────────────────────────────
-function Base() {
+const BASE_W = COLS * CELL   // 底座视觉宽度 = 网格宽度，保证坐标对齐
+const BASE_D = ROWS * CELL   // 底座视觉深度 = 网格深度
+
+function Base({ hitRef }: { hitRef: React.RefObject<THREE.Mesh | null> }) {
   const texture = useTexture('/sandbox/base.png')
-  const img = texture.image as HTMLImageElement | undefined
-  const aspect = img ? img.naturalWidth / img.naturalHeight : 1
-  const w = 4.6
-  const d = w / aspect
   return (
-    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]}>
-      <planeGeometry args={[w, d]} />
-      <meshBasicMaterial map={texture} transparent alphaTest={0.05} />
-    </mesh>
+    <>
+      {/* 可见底座图片，略大于网格给视觉留白 */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]}>
+        <planeGeometry args={[BASE_W * 1.15, BASE_D * 1.15]} />
+        <meshBasicMaterial map={texture} transparent alphaTest={0.05} />
+      </mesh>
+
+      {/* 不可见的碰撞平面，精确等于网格大小，用于 raycast 拖拽检测 */}
+      <mesh ref={hitRef} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.001, 0]}>
+        <planeGeometry args={[BASE_W, BASE_D]} />
+        <meshBasicMaterial transparent opacity={0} depthWrite={false} />
+      </mesh>
+    </>
   )
 }
 
@@ -164,8 +173,9 @@ let uidCounter = 0
 
 export default function SandPage() {
   const navigate = useNavigate()
-  const orbitRef = useRef<OrbitControlsImpl>(null)
-  const camRef = useRef<THREE.Camera | null>(null)
+  const orbitRef  = useRef<OrbitControlsImpl>(null)
+  const camRef    = useRef<THREE.Camera | null>(null)
+  const hitRef    = useRef<THREE.Mesh>(null)
   const [items, setItems] = useState<PlacedItem[]>([])
   const [activeTab, setActiveTab] = useState('all')
 
@@ -322,9 +332,10 @@ export default function SandPage() {
         <PanPlane orbitRef={orbitRef} />
 
         <Suspense fallback={null}>
-          <Base />
+          <Base hitRef={hitRef} />
         </Suspense>
 
+        <HitPlaneCtx.Provider value={hitRef}>
         <OrbitCtx.Provider value={orbitRef}>
           {items.map(item => (
             <Suspense key={item.uid} fallback={null}>
@@ -346,6 +357,7 @@ export default function SandPage() {
             </Suspense>
           ))}
         </OrbitCtx.Provider>
+        </HitPlaneCtx.Provider>
       </Canvas>
 
       {/* 底部抽屉 */}
