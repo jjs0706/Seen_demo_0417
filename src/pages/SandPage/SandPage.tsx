@@ -23,7 +23,7 @@ function Base() {
   const texture = useTexture('/sandbox/base.png')
   const img = texture.image as HTMLImageElement | undefined
   const aspect = img ? img.naturalWidth / img.naturalHeight : 1
-  const w = 3.8
+  const w = 4.6
   const d = w / aspect
   return (
     <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]}>
@@ -41,8 +41,8 @@ function CameraCapture({ camRef }: { camRef: React.MutableRefObject<THREE.Camera
 }
 
 // ── 放大后才能平移的平面 ──────────────────────────────────────
-const ZOOM_THRESHOLD = 6.8
-const PAN_LIMIT = 1.2
+const ZOOM_THRESHOLD = 7.5
+const PAN_LIMIT = 1.8
 
 function PanPlane({ orbitRef }: { orbitRef: React.RefObject<OrbitControlsImpl | null> }) {
   const { camera } = useThree()
@@ -291,7 +291,7 @@ export default function SandPage() {
 
       <Canvas
         gl={{ alpha: true, antialias: true }}
-        camera={{ position: [0, 5, 5], fov: 38 }}
+        camera={{ position: [0, 6, 6], fov: 40 }}
         style={{ position: 'absolute', inset: 0 }}
       >
         <CameraCapture camRef={camRef} />
@@ -304,7 +304,7 @@ export default function SandPage() {
           enablePan={false}
           enableZoom={true}
           minDistance={3}
-          maxDistance={7.1}
+          maxDistance={9.0}
           zoomSpeed={1.2}
           touches={{ ONE: THREE.TOUCH.DOLLY_PAN, TWO: THREE.TOUCH.DOLLY_PAN }}
         />

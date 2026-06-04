@@ -1,7 +1,7 @@
 // 沙盘网格配置
-export const CELL = 0.35          // 每格世界坐标大小
-export const COLS = 10            // 列数
-export const ROWS = 8             // 行数
+export const CELL = 0.30          // 每格世界坐标大小
+export const COLS = 14            // 列数
+export const ROWS = 12            // 行数
 export const OX: number = -(COLS * CELL) / 2   // 网格左边界 X = -1.75
 export const OZ: number = -(ROWS * CELL) / 2   // 网格上边界 Z = -1.40
 
