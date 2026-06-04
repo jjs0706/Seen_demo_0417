@@ -78,8 +78,8 @@ function PanPlane({ orbitRef }: { orbitRef: React.RefObject<OrbitControlsImpl | 
     ctrl.target.x += actualDx
     ctrl.object.position.x += actualDx
 
-    // Z 轴平移（屏幕向下 → 世界 +Z）
-    const newZ = Math.max(-PAN_LIMIT, Math.min(PAN_LIMIT, ctrl.target.z + clientDy * worldPerPixel))
+    // Z 轴平移（屏幕向上 → 世界 +Z，符号与 X 轴一致）
+    const newZ = Math.max(-PAN_LIMIT, Math.min(PAN_LIMIT, ctrl.target.z - clientDy * worldPerPixel))
     const actualDz = newZ - ctrl.target.z
     ctrl.target.z += actualDz
     ctrl.object.position.z += actualDz

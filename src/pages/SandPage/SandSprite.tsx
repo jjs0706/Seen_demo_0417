@@ -83,13 +83,14 @@ export default function SandSprite({
     return data[3] < 30
   }, [])
 
-  const screenToPlane = useCallback((clientX: number, clientY: number, planeY: number): THREE.Vector3 | null => {
+  // 始终与 y=0 地面平面求交，保证坐标和视觉网格对齐
+  const screenToGround = useCallback((clientX: number, clientY: number): THREE.Vector3 | null => {
     const rect = gl.domElement.getBoundingClientRect()
     const ndx = ((clientX - rect.left) / rect.width) * 2 - 1
     const ndy = -((clientY - rect.top) / rect.height) * 2 + 1
     const ray = new THREE.Raycaster()
     ray.setFromCamera(new THREE.Vector2(ndx, ndy), camera)
-    const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -planeY)
+    const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0)
     const pt = new THREE.Vector3()
     return ray.ray.intersectPlane(plane, pt) ? pt : null
   }, [camera, gl])
@@ -126,7 +127,7 @@ export default function SandSprite({
     e.stopPropagation()
     if (!groupRef.current) return
 
-    const pt = screenToPlane(e.nativeEvent.clientX, e.nativeEvent.clientY, centerY)
+    const pt = screenToGround(e.nativeEvent.clientX, e.nativeEvent.clientY)
     if (pt) {
       dragOffset.current.set(
         groupRef.current.position.x - pt.x,
@@ -142,12 +143,12 @@ export default function SandSprite({
     setDragging(true)
 
     const onWindowMove = (ev: PointerEvent) => {
-      const hit = screenToPlane(ev.clientX, ev.clientY, centerY)
+      const hit = screenToGround(ev.clientX, ev.clientY)
       if (hit) {
         dragTarget.current.x = hit.x + dragOffset.current.x
         dragTarget.current.z = hit.z + dragOffset.current.z
       } else {
-        // 射线打不到水平面（指针在"天空"区域）→ 直接标记为越界
+        // 射线打不到地面（指针在"天空"区域）→ 标记为越界
         dragTarget.current.x = OX - 99
         dragTarget.current.z = OZ - 99
       }
@@ -185,7 +186,7 @@ export default function SandSprite({
 
     window.addEventListener('pointermove', onWindowMove)
     window.addEventListener('pointerup', onWindowUp)
-  }, [isTransparent, screenToPlane, centerY, freeCells, uid, orbitRef, gl, gridW, gridH, findFreeCell, occupyCells, onRemove])
+  }, [isTransparent, screenToGround, freeCells, uid, orbitRef, gl, gridW, gridH, findFreeCell, occupyCells, onRemove])
 
   return (
     <>
