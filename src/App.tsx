@@ -14,6 +14,7 @@ import DriftBottlePage from './pages/HealingPages/DriftBottlePage'
 import LighthousePage from './pages/HealingPages/LighthousePage'
 import DreamPage from './pages/HealingPages/DreamPage'
 import CabinDecoPage from './pages/CabinPage/CabinDecoPage'
+import SandPage2D from './pages/SandPage/SandPage2D'
 
 
 export default function App() {
@@ -40,8 +41,9 @@ export default function App() {
           {/* 小屋装饰沙盘 */}
           <Route path="cabin/deco" element={<CabinDecoPage />} />
 
-          {/* 🔌 交互沙盘（独立设计，后续接入小屋/疗愈）*/}
-          <Route path="sand" element={<SandPage />} />
+          {/* 交互沙盘：3D 版 / 2D 版 */}
+          <Route path="sand"    element={<SandPage />} />
+          <Route path="sand-2d" element={<SandPage2D />} />
 
           {/* 情绪记录历史 */}
           <Route path="history" element={<HistoryPage />} />

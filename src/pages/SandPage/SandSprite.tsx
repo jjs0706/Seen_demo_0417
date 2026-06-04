@@ -20,7 +20,6 @@ interface SandSpriteProps {
 
 const GROUND_Y = 0.01
 
-// 删除容差：比底座边缘多出 2 个格子才算飞出
 function isOutOfBounds(x: number, z: number) {
   const margin = CELL * 2.5
   return (
@@ -44,12 +43,11 @@ export default function SandSprite({
   const texture = useTexture(textureUrl)
   const { camera, gl } = useThree()
   const groupRef = useRef<THREE.Group>(null)
-  const meshRef = useRef<THREE.Mesh>(null)
   const [dragging, setDragging] = useState(false)
   const orbitRef = useContext(OrbitCtx)
   const dragOffset = useRef(new THREE.Vector3())
-  const dragTarget = useRef(new THREE.Vector3())   // 平滑拖拽目标
-  const isDraggingRef = useRef(false)              // 不走 setState，避免 re-render 延迟
+  const dragTarget = useRef(new THREE.Vector3())
+  const isDraggingRef = useRef(false)
   const alphaCanvas = useRef<HTMLCanvasElement | null>(null)
   const alphaCtx = useRef<CanvasRenderingContext2D | null>(null)
 
@@ -85,7 +83,6 @@ export default function SandSprite({
     return data[3] < 30
   }, [])
 
-  // 屏幕坐标 → 水平面交点（planeY = 物品中心高度，消除透视偏移）
   const screenToPlane = useCallback((clientX: number, clientY: number, planeY: number): THREE.Vector3 | null => {
     const rect = gl.domElement.getBoundingClientRect()
     const ndx = ((clientX - rect.left) / rect.width) * 2 - 1
@@ -97,19 +94,16 @@ export default function SandSprite({
     return ray.ray.intersectPlane(plane, pt) ? pt : null
   }, [camera, gl])
 
-  useFrame(({ camera: cam }) => {
+  // ── 方案 A：固定朝向相机初始方向，不随视角旋转 ──
+  useFrame(() => {
     if (!groupRef.current) return
-    // 始终朝向相机
-    groupRef.current.rotation.y = Math.atan2(
-      cam.position.x - groupRef.current.position.x,
-      cam.position.z - groupRef.current.position.z
-    )
-    // 平滑跟随拖拽目标（XZ 轴）
+    // 固定朝向 +Z（相机从 [0,6,6] 看过来的方向），不再随 pan 旋转
+    groupRef.current.rotation.y = 0
+
     if (isDraggingRef.current) {
       groupRef.current.position.x += (dragTarget.current.x - groupRef.current.position.x) * 0.30
       groupRef.current.position.z += (dragTarget.current.z - groupRef.current.position.z) * 0.30
     }
-    // Y 轴弹起/落下动画
     const ty = isDraggingRef.current ? centerY + 0.14 : centerY
     groupRef.current.position.y += (ty - groupRef.current.position.y) * 0.18
   })
@@ -119,7 +113,6 @@ export default function SandSprite({
     e.stopPropagation()
     if (!groupRef.current) return
 
-    // 以物品中心高度做交叉，消除透视造成的偏移感
     const pt = screenToPlane(e.nativeEvent.clientX, e.nativeEvent.clientY, centerY)
     if (pt) {
       dragOffset.current.set(
@@ -128,7 +121,6 @@ export default function SandSprite({
         groupRef.current.position.z - pt.z
       )
     }
-    // 初始化平滑目标为当前位置
     dragTarget.current.set(groupRef.current.position.x, 0, groupRef.current.position.z)
 
     freeCells(uid)
@@ -136,7 +128,6 @@ export default function SandSprite({
     isDraggingRef.current = true
     setDragging(true)
 
-    // window 级别事件，保证拖到画面外也能追踪
     const onWindowMove = (ev: PointerEvent) => {
       const hit = screenToPlane(ev.clientX, ev.clientY, centerY)
       if (hit) {
@@ -153,11 +144,9 @@ export default function SandSprite({
       setDragging(false)
 
       if (!groupRef.current) return
-      // 使用拖拽目标（而非当前插值位置）判断落点
       const x = dragTarget.current.x
       const z = dragTarget.current.z
 
-      // 松手明显拖出画面外（留 40px 缓冲）→ 删除
       const rect = gl.domElement.getBoundingClientRect()
       const outsideScreen = (
         ev.clientX < rect.left - 40 || ev.clientX > rect.right + 40 ||
@@ -168,7 +157,6 @@ export default function SandSprite({
         return
       }
 
-      // 吸附到最近空格
       const [tc, tr] = worldToTopLeft(x, z, gridW, gridH)
       const [fc, fr] = findFreeCell(tc, tr, gridW, gridH, uid)
       const [cx, cz] = footprintCenter(fc, fr, gridW, gridH)
@@ -188,7 +176,7 @@ export default function SandSprite({
       position={[initialPosition[0], centerY, initialPosition[2]]}
       onPointerDown={onPointerDown}
     >
-      <mesh ref={meshRef}>
+      <mesh>
         <planeGeometry args={[w, height]} />
         <meshBasicMaterial
           map={texture}
